@@ -1,0 +1,2 @@
+"0","weatherAU <- read.csv(""weatherAUS.csv"")"
+"0","weatherAU"

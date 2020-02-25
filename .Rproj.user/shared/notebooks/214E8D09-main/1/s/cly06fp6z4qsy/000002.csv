@@ -1,0 +1,5 @@
+"0","airlines <- as.data.frame(nycflights13::airlines)"
+"0","airports <- as.data.frame(nycflights13::airports)"
+"0","flights <- as.data.frame(nycflights13::flights)"
+"0","planes <- as.data.frame(nycflights13::planes)"
+"0","weather <- as.data.frame(nycflights13::weather)"
