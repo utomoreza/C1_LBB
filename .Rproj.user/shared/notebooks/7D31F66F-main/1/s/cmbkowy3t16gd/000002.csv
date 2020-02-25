@@ -1,2 +1,0 @@
-"0","weatherAU$Date <- as.Date(weatherAU$Date)"
-"0","head(weatherAU)"

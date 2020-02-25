@@ -87,28 +87,28 @@ And to see some nice examples of how to use this data: https://togaware.com/onep
 
 # Preparation {#prep}
 
-```{r}
-library(tidyverse)
+```{r message=FALSE, echo=FALSE}
+library(tidyverse) # for data wrangling
+library(caret) # for confusion matrix
+library(gtools) # for converting log of odds to probs
+library(PerformanceAnalytics) # for pair plotting
+library(car) # for executing VIF test
+library(rsample) # for splitting dataset into train and test with controlled proportion
+library(class) # for KNN
 ```
-
 
 ```{r}
 weatherAU <- read.csv("weatherAUS.csv")
 weatherAU
 ```
 
+# Data Wrangling
+
 ```{r}
 str(weatherAU)
 ```
 
-Change `Date` data type to date.
-
-```{r}
-weatherAU$Date <- as.Date(weatherAU$Date)
-head(weatherAU)
-```
-
-Since we will compare the performance of Logistic Regression and KNN and KNN is not suitable to categorical predictor variables, we're going to drop those categorical ones. In addition, we should remove `RISK_MM` feature as well as explained in the beginning.
+Since we will compare the performance of Logistic Regression and KNN and KNN is not suitable to categorical predictor variables, we're going to drop those categorical ones. In addition, we should remove `RISK_MM` and `Date` features as well since `RISK_MM` have to be deleted as explained in the beginning and we do not consider time series forecasting so that we do not need `Date`.
 
 ```{r}
 categorical <- vector()
@@ -139,7 +139,7 @@ summary(DF)
 ```
 
 ```{r warning=FALSE}
-DF %>% select(colnames(.)[2:17]) %>% 
+DF %>% select(colnames(.)[1:17]) %>% 
   pivot_longer(cols = colnames(.)[1:16], names_to = "Type", values_to = "Value") %>% 
   mutate(Type = as.factor(Type)) %>% 
   ggplot(aes(x = Type,
@@ -151,7 +151,7 @@ DF %>% select(colnames(.)[2:17]) %>%
 Most predictors have outliers (we will deal with this outliers later in [a]()). So, the appropriate approach to fill missing values is by imputating them with median value as median is robust with outliers.
 
 ```{r}
-for (i in 2:(length(DF)-1)) {
+for (i in 1:(length(DF)-1)) {
     DF[,i] <- replace_na(data = DF[,i], replace = median(DF[,i], na.rm = T))
 }
 anyNA(DF)
@@ -159,13 +159,54 @@ anyNA(DF)
 
 Nice. No missing value anymore.
 
+# Exploratory Data Analysis
+
+## Target Variable Proportion
+
+```{r}
+table(DF$RainTomorrow)
+prop.table(table(DF$RainTomorrow))
+```
+
+Temporarily, we can consider the proportion is sufficiently balanced. If later we will find this is not balanced enough, we will tackle with this problem.
+
+To make sure, we can display the dataframe information once again.
+
+```{r}
+str(DF)
+```
+
+## Multicollinearity
+
+```{r}
+library(GGally)
+
+GGally::ggcorr(DF %>% select(-RainTomorrow), label = T)
+ggcorrplot::ggcorrplot(DF %>% select(-RainTomorrow) %>% cor(),
+  hc.order = TRUE, type = "lower",
+  lab = TRUE,
+  digits = 1,
+  ggtheme = ggplot2::theme_dark(),
+)
+
+GGally::ggpairs(DF %>% select(-RainTomorrow))
+pairs.panels(DF %>% select(-RainTomorrow))
+```
+
+```{r}
+DFcomb <- combn(colnames(DF[,1:16]), 2)
+Alpha <- 0.05
 
 
-The suspects with high leverage: `Rainfall`, `Evaporation`, 
-
-Remove NA in `MinTemp`, `MaxTemp`, `Rainfall`, 
-
-Drop features `Date`, `Location`, `RISK_MM`
+for (i in 1:dim(DFcomb)[2]) {
+  print(paste0("Cor test between ", DFcomb[1,i], " and ", DFcomb[2,i]))
+  corTest <- cor.test(DF[,DFcomb[1,i]], DF[,DFcomb[2,i]])
+  ifelse(corTest$p.value < Alpha, 
+         print("Multicollinear detected"), 
+         print("Safe! No Multicollinear"))
+  cat("\n")
+}
+```
 
 
 
