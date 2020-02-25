@@ -88,6 +88,11 @@ And to see some nice examples of how to use this data: https://togaware.com/onep
 # Preparation {#prep}
 
 ```{r}
+library(tidyverse)
+```
+
+
+```{r}
 weatherAU <- read.csv("weatherAUS.csv")
 weatherAU
 ```
@@ -103,31 +108,60 @@ weatherAU$Date <- as.Date(weatherAU$Date)
 head(weatherAU)
 ```
 
+Since we will compare the performance of Logistic Regression and KNN and KNN is not suitable to categorical predictor variables, we're going to drop those categorical ones. In addition, we should remove `RISK_MM` feature as well as explained in the beginning.
+
+```{r}
+categorical <- vector()
+for (i in 1:(length(weatherAU)-1)) {
+  if (class(weatherAU[,i]) == "factor") {
+    category <- colnames(weatherAU)[i]
+    categorical <- c(categorical, category)
+  }
+}
+weatherAU[,categorical] # to be removed
+DF <- weatherAU %>% 
+  select(-(categorical)) %>% 
+  select(-RISK_MM)
+head(DF)
+ncol(DF)
+```
+
 Proportion of missing values
+
 ```{r}
-colSums(is.na(weatherAU))
+colSums(is.na(DF))
 cat("\n")
-colSums(is.na(weatherAU))/nrow(weatherAU)
+colSums(is.na(DF))/nrow(DF)
 ```
 
 ```{r}
-for (i in 2:length(weatherAU)) {
-  print(paste0("Unique values in ", colnames(weatherAU)[i], ":"))
-  print(unique(weatherAU[,i]))
+summary(DF)
+```
+
+```{r warning=FALSE}
+DF %>% select(colnames(.)[2:17]) %>% 
+  pivot_longer(cols = colnames(.)[1:16], names_to = "Type", values_to = "Value") %>% 
+  mutate(Type = as.factor(Type)) %>% 
+  ggplot(aes(x = Type,
+             y = Value)) + 
+  coord_flip() + 
+  geom_boxplot(aes(fill = Type), show.legend = F)
+```
+
+Most predictors have outliers (we will deal with this outliers later in [a]()). So, the appropriate approach to fill missing values is by imputating them with median value as median is robust with outliers.
+
+```{r}
+for (i in 2:(length(DF)-1)) {
+    DF[,i] <- replace_na(data = DF[,i], replace = median(DF[,i], na.rm = T))
 }
+anyNA(DF)
 ```
 
-```{r}
-for (i in 1:length(weatherAU)) {
-  print(i)
-  print(colnames(weatherAU)[i])
-  # print()
-}
-```
+Nice. No missing value anymore.
 
-```{r}
-summary(weatherAU)
-```
+
+
+The suspects with high leverage: `Rainfall`, `Evaporation`, 
 
 Remove NA in `MinTemp`, `MaxTemp`, `Rainfall`, 
 

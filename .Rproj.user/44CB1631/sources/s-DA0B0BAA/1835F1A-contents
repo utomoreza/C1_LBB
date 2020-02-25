@@ -1,0 +1,1299 @@
+---
+title: "Inclass"
+author: "Arga Adyatama"
+date: "1/19/2020"
+output: 
+ html_document:
+   df_print: paged
+   toc: true
+   toc_float: true
+   theme: flatly
+   highlight: zenburn
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import Data
+
+Import data menggunakan `read.csv()`
+
+```{r}
+vids <- read.csv("USvideos.csv")
+vids
+```
+
+* **trending_date**: tanggal trending 
+* **title**: judul video
+* **channel_title**: nama channel Youtube
+* **category_id**: kategori video
+* **publish_time**: tanggal upload video
+* **views**: jumlah views
+* **likes**: jumlah likes
+* **dislikes**: jumlah dislikes
+* **comment_count**: jumlah komentar
+* **comment_disabled**: apakah kolom komentar tidak diaktifkan
+* **rating_disabled**: apakah rating video tidak diaktifkan
+* **video_error_or_removed**: apakah video dihapus
+
+# Refreshing P4DS
+
+1. Pilih observasi yang memiliki views lebih dari 50.000
+
+```{r}
+vids[ vids$views > 50000, ]
+```
+
+2. Pilih observasi yang memiliki views lebih dari 1 juta tetapi hanya memiliki komen di bawah 1.000 komen
+
+```{r}
+vids[ vids$views > 1000000 & vids$comment_count < 1000, ]
+```
+
+3. Siapa saja 10 channel dengan rata-rata dislikes terbanyak?
+
+Step-by-step:
+1. Mengagregasi data berdasarkan `channel_title` dengan menghitung rata-rata `dislikes`
+2. mengurutkan data hasil agregasi menggunakan `order()`
+
+```{r}
+# agregasi data
+vids.agregate <- aggregate(dislikes ~ channel_title, data = vids, FUN = mean)
+
+#sort(vids.agregate$dislikes, decreasing = T)
+
+# urutkan dengan order(), ambil 10 pertama dengan head()
+head(vids.agregate[order(vids.agregate$dislikes, decreasing = T), ], 10)
+```
+
+4. Kolom mana saja yang tidak sesuai tipe datanya?
+
+```{r}
+str(vids)
+```
+
+- trending_date
+- title
+- channel_title
+- publish_time
+
+# Memanipulasi data berupa Tanggal Menggunakan `lubridate`
+
+package `lubridate` mempermudah kita dalam mentransformasi data menjadi format tanggal atau waktu
+
+```{r}
+#install.packages("lubridate")
+library(lubridate)
+```
+
+**Lihat Cheatsheet Lubridate**
+
+https://evoldyn.gitlab.io/evomics-2018/ref-sheets/R_lubridate.pdf
+
+## Merubah `trending_date` dari factor menjadi tanggal
+
+```{r}
+head(vids$trending_date)
+```
+
+Dengan lubridate, year-day-month => ydm()
+```{r}
+#Format tidak sesuai akan muncul pemberitahuan atau NA
+mdy(head(vids$trending_date))
+```
+
+
+```{r}
+# Format sesuai, tidak ada pemberitahuan
+ydm(head(vids$trending_date))
+```
+
+Cukup dijalankan satu kali saja untuk merubah format tanggal
+```{r}
+vids$trending_date <- ydm(vids$trending_date) # merubah tipe data trending_date dari factor menjadi tanggal
+head(vids$trending_date)
+```
+
+## Merubah `publish_time` dari factor menjadi tanggal
+
+```{r}
+head(vids$publish_time)
+```
+
+```{r}
+head(ymd_hms(vids$publish_time))
+```
+
+Kita bisa merubah timezone (zona waktu)
+List time zone: "https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+
+Kita ubah timezone menjadi Jakarta
+```{r}
+head( ymd_hms(vids$publish_time, tz = "Asia/Jakarta") )
+```
+
+Kita ubah timezone menjadi New_York
+```{r}
+head( ymd_hms(vids$publish_time, tz = "America/New_York") )
+```
+
+```{r}
+vids$publish_time <- ymd_hms(vids$publish_time, tz = "America/New_York") # Merubah kolom publish_time menjadi tanggal dan waktu
+```
+
+## Mengekstrak informasi tahun, bulan, tanggal, dan hari
+
+Buat object bernama `most_view` yang berisi video dengan jumlah views terbanyak
+
+```{r}
+most_view <- vids[ vids$views == max(vids$views)  ,  ]
+most_view
+```
+
+### Mengekstrak tahun
+
+Pada tahun berapa video tersebut trending?
+
+```{r}
+year(most_view$trending_date)
+```
+
+### Mengekstrak bulan
+
+Pada bulan apa video tersebut trending?
+
+Mengambil bulan sebagai numerik
+
+```{r}
+month(most_view$trending_date)
+```
+
+Mengambil bulan sebagai nama bulan dan disingkat
+
+```{r}
+month(most_view$trending_date, label = T)
+```
+
+Mengambil bulan sebagai nama bulan dan tidak disingkat
+
+```{r}
+month(most_view$trending_date, label = T, abbr = F)
+```
+
+### Mengekstrak tanggal
+
+Pada tanggal keberapa video tersebut trending? 
+
+```{r}
+day(most_view$trending_date)
+```
+
+### Mengekstrak nama hari
+
+Pada hari apa video tersebut trending?
+
+Mengambil nama hari dan disingkat
+
+```{r}
+wday(most_view$trending_date, label = T)
+```
+
+Mengambil nama hari dan tidak disingkat
+
+```{r}
+wday(most_view$trending_date, label = T, abbr = F)
+```
+
+### Mengekstrak jam
+
+**DIVE DEEPER*
+
+Buat kolom baru berisi hari publish video dan jam publish video untuk `vids`. Beri nama `publish_day` dan `publish_hour` dari kolom `publish_time`
+
+```{r}
+vids$publish_day <- wday(vids$publish_time, label = T, abbr = F) # membuat kolom baru bernama publish_day
+head(vids$publish_day)
+```
+
+Membuat kolom `publish_hour` yang berisi jam dari `publish_time`
+
+```{r}
+vids$publish_hour <- hour(vids$publish_time) # membuat kolom baru bernama publish_hour
+```
+
+Buat kolom berisi berapa lama waktu untuk trending? Beri nama `time_to_trend`
+
+Step-by-step
+
+1. Membuat kolom `publish_date` yang berisi hanya tanggal dari `publish_time`, karena `publish_time` selain memiliki tanggal juga memiliki waktu (jam menit detik)
+2. Mengurangkan `trending_date` dengan `publish_date`, kemudian diubah menjadi `numeric`
+
+```{r}
+vids$publish_date <- date(vids$publish_time) 
+
+vids$time_to_trend <- as.numeric(vids$trending_date - vids$publish_date)
+vids
+```
+
+### Mengkategorikan jam
+
+Kita akan mengkategorikan `publish_hour` menjadi 3 kategori:
+
+* 12am to 8am
+* 8am to 3pm
+* 3pm to 12am
+
+```{r}
+convert_hour <- function(x){
+  if (x >= 0 & x <= 8) { 
+    x <- "12am to 8am"
+  }
+  else if (x > 8 & x <= 15) {
+    x <- "8am to 3pm"
+  }
+  else {
+    x <- "3pm to 12am"
+  }
+}
+```
+
+Saya buat kolom baru `publish_when`
+```{r}
+convert_hour(vids$publish_hour)
+```
+
+function convert_hour() hanya menerima 1 input, sedangkan `vids$publish_hour` adalah vektor yang berisi banyak angka sehingga yang diubah menjadi kategori hanya observasi pertama saja.
+
+`sapply()` digunakan untuk menerapkan 1 function ke semua observasi atau data.
+
+```{r}
+vids$publish_when <- sapply(X = vids$publish_hour,FUN =  convert_hour)
+vids
+```
+
+
+## Merubah `category_id` dari angka menjadi nama kategori
+
+Menggunakan function `switch()`. Contohnya:
+
+```{r}
+switch("2",
+  "1" = "Film and Animation",
+  "2" = "Autos"
+)
+```
+
+Angka 2 (sebagai karakter) akan berubah menjadi Autos.
+
+Supaya bisa diterapkan ke semua observasi, digunakan `sapply()` dan `vids$category_id` harus diubah dulu menjadi karakter
+
+```{r}
+vids$category_id <- sapply(as.character(vids$category_id), switch, 
+                           "1" = "Film and Animation",
+                           "2" = "Autos and Vehicles", 
+                           "10" = "Music", 
+                           "15" = "Pets and Animals", 
+                           "17" = "Sports",
+                           "19" = "Travel and Events", 
+                           "20" = "Gaming", 
+                           "22" = "People and Blogs", 
+                           "23" = "Comedy",
+                           "24" = "Entertainment", 
+                           "25" = "News and Politics",
+                           "26" = "Howto and Style", 
+                           "27" = "Education",
+                           "28" = "Science and Technology", 
+                           "29" = "Nonprofit and Activism",
+                           "43" = "Shows")
+```
+
+Setelah berubah nama dari angka menjadi nama kategorinya, kita ubah dari `character` menjadi `factor`
+
+```{r}
+vids$category_id <- as.factor(vids$category_id)
+vids
+```
+
+## Merubah beberapa kolom dengan tipe `integer` menjadi `numeric` sekaligus
+
+Ketika kita ingin merubah beberapa kolom sekaligus, kita bisa menggunakan function `lapply()`. Misalnya kita ingin merubah kolom-kolom yang integer (`views`, `dislikes`, `comment_count`, dan `publish_hour`) menjadi numeric
+
+```{r}
+vids[ , c("views", "likes", "dislikes", "comment_count", "publish_hour")] <- 
+  lapply(vids[ , c("views", "likes", "dislikes", "comment_count", "publish_hour")], 
+       as.numeric )
+
+vids
+```
+
+`sapply()` keluarannya adalah matrix
+`lapply()` keluarannya adalah list
+
+# Mengambil judul video yang unik 
+
+Karena 1 video bisa trending dalam beberapa hari, kita coba ambil 1 observasi saja untuk setiap video agar tidak berulang
+
+`match()`
+
+```{r}
+df <- data.frame(nama = c("Arga", "Arga", "Arga", "Sita", "Sita", "David"),
+           nilai = c(70,60, 50, 80, 50, 90))
+
+df
+```
+
+Dari 3 nama Arga, hanya diambil 1 saja (yang paling pertama muncul) sedangkan sisanya tidak diambil.
+
+```{r}
+df[ match(unique(df$nama), df$nama), ]
+```
+
+```{r}
+vids.unik <- vids[ match(unique(vids$title), vids$title), ]
+vids.unik$like_per_view <- vids.unik$likes/vids.unik$views
+vids.unik$dislike_per_view <- vids.unik$dislikes/vids.unik$views
+vids.unik$comment_per_view <- vids.unik$comment_count/vids.unik$views
+vids.unik
+```
+
+# Basic Plotting in R
+
+## Kapan saya harus upload video?
+
+Sebagai seorang konsultan media sosial, saya ditugaskan untuk membantu seorang klien yang ingin memulai karir sebagai youtuber. Salah satu pertanyaan pertamanya adalah pada jam berapa saya harus upload/publish supaya diminati? Bisa melihat likes per views
+
+Cara 1 membuat boxplot menggunakan function `boxplot()`
+```{r}
+boxplot(vids$likes/vids$views ~ vids$publish_hour)
+```
+
+Cara 2 membuat boxplot menggunakan function `plot()`
+```{r}
+plot(x = as.factor(vids$publish_hour), y = vids$likes/vids$views)
+```
+
+Insight yang bisa didapatkan:
+
+- Jumlah likes per views polanya mengikuti pola aktivitas kerja 
+- Yang paling sedikit outliernya di jam 5 pagi
+- Paling tinggi secara median ada di jam 4 sore
+
+Jenis plot yang dihasilkan berubah sesuai tipe data yang dimasukkan, jika:
+
+* 1 variabel, x kategori: **bar chart**
+* 1 variabel, x numerik: **scatter plot**
+* 2 variabel, x dan y adalah numerik: **scatter plot**
+* 2 variabel, x kategori, y numerik: **boxplot**
+
+Contohnya, ketika saya hanya memasukkan 1 variabel kategorik (`category_id`) plot akan mengeluarkan bar chart
+```{r}
+plot(x = vids$category_id)
+```
+
+
+Buat boxplot untuk melihat distribusi comment count per views untuk setiap jam publish-nya
+
+```{r}
+boxplot(vids$comment_count/vids$views ~ vids$publish_hour)
+```
+
+## Apakah Video yang punya Likes per views tinggi juga punya Dislikes per views yang tinggi?
+
+Klien saya ini ingin memulai channel dengan kategori `Gaming`, `Autos and Vehicles`, atau `Travel and Events`. 
+
+```{r}
+vids.selected <- vids.unik[ vids.unik$category_id == "Gaming" | 
+                              vids.unik$category_id == "Autos and Vehicles" | 
+                              vids.unik$category_id == "Travel and Events", ]
+```
+
+```{r}
+plot(x = vids.selected$dislikes/vids.selected$views, 
+     y = vids.selected$likes/vids.selected$views)
+```
+
+------------------------------------- DAY 2 ------------------------------------------------------
+
+Agar lebih rapi, likes per view, dislikes per view, dan comment per view kita buatkan kolom terlebih dahulu
+
+```{r}
+vids.selected$like_per_view <- vids.selected$likes/vids.selected$views
+vids.selected$dislike_per_view <- vids.selected$dislikes/vids.selected$views
+vids.selected$comment_per_view <- vids.selected$comment_count/vids.selected$views
+```
+
+```{r}
+levels(vids.selected$category_id)
+```
+
+```{r}
+vids.selected$category_id <- factor(vids.selected$category_id)
+```
+
+```{r}
+levels(vids.selected$category_id)
+```
+
+
+Selain menggambarkan persebaran datanya, apalagi informasi yang bisa ditampilkan?
+
+- Membuat tren hubungan antara 2 variabel
+- Memberi warna titik sesuai dengan kategorinya
+
+```{r}
+plot(x = vids.selected$dislike_per_view, 
+     y = vids.selected$like_per_view)
+
+abline(lm(like_per_view ~ dislike_per_view, data = vids.selected))
+```
+
+```{r}
+plot(x = vids.selected$dislike_per_view, 
+     y = vids.selected$like_per_view, 
+     col = vids.selected$category_id, # memberikan warna sesuai category_id
+     pch = 19 # menentukan bentuk titiknya
+     ) 
+
+abline( lm(like_per_view ~ dislike_per_view, data = vids.selected), col = "blue") # membuat garis tren hubungan 2 variabel
+
+legend("topright", legend = levels(vids.selected$category_id), fill = 1:3) # membuat legend
+```
+
+## Bagaimana distribusi likes ratio di video-video yang trending?
+
+Scatterplot bisa menggambarkan di mana titik-titik observasi berkumpul, tapi kita tidak bisa mengetahui berapa frekuensinya untuk setiap `like_per_view`. Untuk menggambarkan distribusi dari 1 variabel saja, bisa menggunakan histogram.
+
+```{r}
+hist(vids.selected$like_per_view)
+```
+
+```{r}
+boxplot(vids.selected$like_per_view)
+```
+
+
+## Kapan Menggunakan Base Plot?
+
+- Ketika ingin membuat plot sederhana
+- Ketika kita ingin melakukan analisis secara cepat
+- Ketika grafik yang dihasilkan tidak untuk ditampilkan di depan umum
+
+## Best Practice Step-by-Step Data Visualization
+
+Step 1: Siapkan Data
+
+- Informasi apa saja yang akan ditampilkan
+- Proses atau langkah apa saja yang diperlukan untuk mendapatkan informasi tersebut
+
+Step 2: Buat Plot atau Grafik
+
+Buat plot yang sesuai dengan konteks atau tujuannya, misalkan membuat boxplot atau histogram untuk memperlihatkan distribusi/persebaran data
+
+Step 3: Improve the Plot
+
+Mempercantik atau menghias plot agar lebih menarik dan `worthy` untuk ditampilkan di depan umum
+
+# `Grammar of Graphic` with `ggplot2`
+
+## What is ggplot
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+```
+
+**Let's see the cheatsheet**
+
+```{r}
+ggplot()
+```
+
+## Aesthetic
+
+Aesthetic adalah elemen-elemen yang penting dalam grafik, meliputi sumbu x, sumbu y, warna, dan lain-lain, yang digunakan untuk menyampaikan informasi.
+
+Untuk video yang likesnya lebih dari 10.000, kita coba lihat distribusi like per view-nya untuk setiap category dari data `vids.selected`.
+
+Step 1: Menyiapkan Data
+
+Langkah yang dilakukan:
+
+- Subset likes > 10.000
+- Sumbu x = kategori
+- Sumbu y = likes per view
+
+```{r}
+data_viz <- vids.selected[ vids.selected$likes > 10000, ]
+data_viz
+```
+
+
+Step 2: Membuat Plot
+
+```{r}
+ggplot(data = data_viz, mapping = aes(x = category_id, 
+                                      y = like_per_view)) +
+  geom_boxplot() +
+  geom_point()
+```
+
+## Geom
+
+Dalam `ggplot2`, untuk membuat grafik ke dalam ggplot, digunakan function `geom_nama grafik()`. 
+
+```{r}
+ggplot(data = data_viz, mapping = aes(x = as.character(category_id), 
+                                      y = like_per_view)) +
+  geom_boxplot() +
+  geom_jitter()
+```
+
+
+
+```{r}
+str(data_viz$category_id)
+```
+
+Aesthetic bisa diterapkan untuk semua `geom` atau hanya untuk 1 `geom` aja, tergantung posisi penulisannya.
+
+```{r}
+ggplot(data = data_viz, mapping = aes(x = category_id, 
+                                      y = like_per_view, 
+                                      color = category_id)) +
+  
+  geom_boxplot() +
+  geom_jitter()
+```
+
+Jika ingin mengatur segala aesthetic(aes) secara custom, formatnya
+
+Scale_(nama aesthetic, misal color, x, y)_(pilihannya, biasanya sesuai tipe data)
+
+Untuk mengatur warna secara custome maka
+
+Scale_color_brewer(palette = pilih paletnya)
+
+Pilihan warna di palette bisa dilihat pada cheatsheet warna (https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/colorPaletteCheatsheet.pdf)
+
+```{r}
+ggplot(data = data_viz, mapping = aes(x = category_id, 
+                                      y = like_per_view)) +
+  
+  geom_boxplot(mapping = aes(fill = category_id)) +
+  geom_jitter() +
+  scale_fill_brewer(palette = "Set3")
+```
+
+
+## Memberi Judul Grafik
+
+labs() dapat digunakan untuk memberi judul plot, judul axis, dan sebagainya.
+
+```{r}
+ggplot(data = data_viz, mapping = aes(x = category_id, 
+                                      y = like_per_view)) +
+  
+  geom_boxplot(mapping = aes(fill = category_id)) +
+  geom_jitter() +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "Like per View tiap Kategori", 
+       y = "Like per View",
+       x = "Category", 
+       fill = "Legend")
+```
+
+*Dive Deeper ----------------*
+
+Buat boxplot untuk melihat persebaran like per views untuk data `vids.unik` yang jumlah komennya lebih dari 1000 untuk setiap `publish_day`
+
+Step 1: Menyiapkan data
+
+```{r}
+data_viz2 <- vids.unik[ vids.unik$comment_count > 1000, ]
+data_viz2$like_per_view <- data_viz2$likes/data_viz2$views
+```
+
+Step 2: Membuat plot
+```{r}
+ggplot(data = data_viz2, mapping = aes(x = publish_day,
+                                       y = like_per_view)) +
+  geom_jitter(aes(color = publish_day)) +
+  geom_boxplot() +
+  scale_color_brewer(palette = "Set3")
+```
+
+Menghilangkan outlier dengan `outlier.alpha = 0` di dalam `geom_boxplot()` 
+alpha = transparency (0 = 100% transparan, 1 = solid)
+
+```{r}
+ggplot(data = data_viz2, mapping = aes(x = publish_day,
+                                       y = like_per_view)) +
+  geom_jitter(aes(color = publish_day)) +
+  geom_boxplot(outlier.alpha = 0) +
+  scale_color_brewer(palette = "Set3")
+```
+
+Melihat distribusi berdasarkan publish_hour. 
+
+```{r}
+ggplot(data = data_viz2, mapping = aes(x = as.factor(publish_hour),
+                                       y = like_per_view)) +
+  geom_jitter(aes(color = publish_day)) +
+  geom_boxplot() +
+  scale_color_brewer(palette = "Set3")
+```
+
+Kalau sudah tahu misalnya semuanya mau warna "skyblue", langsung ditulis color = "gold" tanpa diletakkan di dalam aes()
+
+```{r}
+ggplot(data = data_viz2, mapping = aes(x = as.factor(publish_hour),
+                                       y = like_per_view)) +
+  geom_jitter(color = "skyblue") +
+  geom_boxplot()
+```
+
+Kita menggunakan aes jika informasinya diambil dari data (dari kolom yang ada di data). Perhatikan output kedua chunk di bawah untuk mengetahui bedanya.
+
+```{r eval=FALSE}
+ggplot(data = data_viz2, mapping = aes(x = as.factor(publish_hour),
+                                       y = like_per_view)) +
+  geom_jitter(color = publish_hour)+
+  geom_boxplot()
+```
+
+```{r}
+ggplot(data = data_viz2, mapping = aes(x = as.factor(publish_hour),
+                                       y = like_per_view)) +
+  geom_jitter(aes(color = like_per_view)) +
+  geom_boxplot(fill = "gold")
+```
+
+## Bar Chart
+
+Kita ingin mengetahui 20 `channel_title` paling produktif (memiliki trending video paling banyak) dari data `vids.unik`.
+
+Step 1: Menyiapkan data
+
+Step-by-step:
+
+- menghitung frekuensi setiap channel_title menggunakan `table()`
+- urutkan dengan order()
+- ambil 20 pertama menggunakan head()
+
+```{r}
+top_channel <- as.data.frame(table(vids.unik$channel_title))
+top_channel <- top_channel[ order(top_channel$Freq, decreasing = T), ]
+data_viz3 <- head(top_channel, 20)
+```
+
+Step 2: Membuat plot
+
+reorder(a, b) : mengurutkan a berdasarkan b dari terbesar ke terkecil
+geom_col() : membuat bar chart
+coord_flip() : memutar atau membalik sumbu x dan sumbu y
+
+```{r}
+ggplot(data = data_viz3, mapping = aes(x = reorder(Var1, Freq), 
+                                       y = Freq)) +
+  geom_col(aes(fill = Freq)) +
+  labs( title = "Top 20 Trending Channel",
+        y = "Frekuensi", x = "Channel", 
+        caption = "Sumber: Youtube") +
+  coord_flip()
+```
+
+Untuk memindahkan posisi legend, menggunakan `theme(legend.position) = "top")`
+
+```{r}
+ggplot(data = data_viz3, mapping = aes(x = reorder(Var1, Freq), 
+                                       y = Freq)) +
+  geom_col(aes(fill = Freq)) +
+  
+  labs( title = "Top 20 Trending Channel",
+        y = "Frekuensi", x = "Channel", 
+        caption = "Sumber: Youtube") +
+  
+  coord_flip() +
+  theme(legend.position = "top")
+```
+
+Coba replicate plot yang ditampilkan
+
+Data sudah siap karena yang ditampilkan adalah semua data, dalam bentuk scatterplot
+
+```{r}
+vids.selected
+```
+
+Step 2: Membuat Plot
+
+```{r}
+ggplot(data = vids.selected, mapping = aes(x = like_per_view,
+                                           y = dislike_per_view,
+                                           size = comment_per_view)) +
+  geom_jitter(aes(color=category_id)) +
+  scale_color_viridis_d() +
+  labs( title = "Like ratio vs Dislike ratio",
+        y = "Dislike ratio",
+        x = "Like ratio", 
+        color = "Category ID",
+        caption = "Youtube Trending, 2018") +
+   theme(legend.position = "top") +
+  guides(size = F)
+```
+
+guides(size = F) : menghapus atau menghilangkan legend untuk size
+
+**Summary Hari Kedua**
+
+Langkah-langkah membuat visualisasi
+
+Step 1: Menyiapkan data yang akan dibutuhkan untuk membuat plot (x, y, color, dll)
+Step 2: Membuat plot
+Step 3: Percantik
+
+General flow membuat ggplot:
+
+1. Membuat objek ggplot yang berisi data dan aes
+
+ggplot(data = data yang akan digunakan, mapping = aes(sumbu x = , sumbu y = , ....))
+
+2. Membuat plotnya menggunakan geom()
+3. Pengaturan lebih lanjut
+
+kapan aes() ditaroh di ggplot() : Kalau ingin diterapkan di semua geom  
+kapan aes() ditaroh di di geom : Hanya diterapkan di geom tersebut
+
+kapan memberi warna tidak menggunakan aes() : langsung tau mau pakai warna apa dan semuanya sama
+
+```{r eval=FALSE}
+geom_point(color = "red")
+```
+
+kapan memberi warna menggunakan aes() :  warna disesuaikan kolom dari data (misal warna disesuaikan like_per_view)
+
+```{r eval=FALSE}
+geom_poin(aes(color = like_per_view))
+```
+
+PR Buat Besok: Bedanya geom_bar dan geom_col
+
+
+---------------------------------- Day 3 ----------------------------
+
+*Dive Deeper -------------*
+
+Gambarkan bar chart untuk menunjukkan rata-rata views di setiap category dari data `vids.unik`
+
+Step 1: Menyiapkan Data
+
+- mencari rata-rata views 
+- 
+
+```{r}
+data_viz_views <- aggregate(views ~ category_id, data = vids.unik, 
+                            FUN = mean)
+data_viz_views
+```
+
+Step 2: Membuat Plot
+
+```{r}
+# membuat ggplot() diisi data dan aes
+ggplot(data = data_viz_views, mapping = aes(x = reorder(category_id, views),
+                                            y = views)) +
+  
+  # membuat plot dengan geom
+  geom_col(aes( fill = views)) +
+  
+  # memberi judul
+  labs(title = "Rata-rata Views",
+       y = "Views", x = "Category") +
+  
+  # pengaturan tambahan
+  coord_flip() 
+```
+
+```{r}
+# membuat ggplot() diisi data dan aes
+ggplot(data = data_viz_views, mapping = aes(x = reorder(category_id, views),
+                                            y = views)) +
+  
+  # membuat plot dengan geom
+  geom_col( fill = "orange" ) +
+  geom_text(aes(label = views), nudge_y = 200000) +
+  
+  # memberi judul
+  labs(title = "Rata-rata Views",
+       y = "Views", x = "Category") +
+  
+  # pengaturan tambahan
+  coord_flip() 
+```
+
+Jika ingin posisi textnya sama, diatur pada aes( x atau y) untuk geom_text()
+
+```{r}
+# membuat ggplot() diisi data dan aes
+ggplot(data = data_viz_views, mapping = aes(x = reorder(category_id, views),
+                                            y = views)) +
+  
+  # membuat plot dengan geom
+  geom_col( fill = "orange" ) +
+  geom_text(aes(y = max(views), label = views), nudge_y = 1) +
+  
+  # memberi judul
+  labs(title = "Rata-rata Views",
+       y = "Views", x = "Category") +
+  
+  # pengaturan tambahan
+  coord_flip() 
+```
+
+Menggunakan nudge_y tapi tidak dengan angka, diganti dengan variabel
+
+```{r}
+# membuat ggplot() diisi data dan aes
+ggplot(data = data_viz_views, mapping = aes(x = reorder(category_id, views),
+                                            y = views)) +
+  
+  # membuat plot dengan geom
+  geom_col( fill = "orange" ) +
+  geom_text(aes(label = views), nudge_y = 0.2*max(data_viz_views$views)) +
+  
+  # memberi judul
+  labs(title = "Rata-rata Views",
+       y = "Views", x = "Category") +
+  
+  # pengaturan tambahan
+  coord_flip() 
+```
+
+`table` menghasilkan matrix sehingga apabila ingin digunakan, harus diubah dulu dengan `as.data.frame`
+```{r}
+as.data.frame(table(vids.unik$category_id))
+```
+
+`aggregate` menghasilkan dataframe
+```{r}
+aggregate(views ~ category_id, data = vids.unik, 
+                            FUN = length)
+```
+
+
+# Geom_text() dan geom_label()
+
+Buat scatter plot untuk melihat like per view dan dislike per view untuk video dari channel `Universal Pictures` dari data `vids.unik`
+
+1. Siapkan Data: 
+
+- subset untuk channel_title = Universal Pictures
+- hanya mengambil kolom like per view, dislike per view, title
+
+```{r}
+vids_universal <- vids.unik[ vids.unik$channel_title == "Universal Pictures"  , 
+                             c("like_per_view", "dislike_per_view", "title")]
+
+vids_universal
+```
+
+2. Membuat Plot:
+
+Buat scatterplot dan ditambahi text yang berisi title
+```{r}
+ggplot(vids_universal, aes(like_per_view, dislike_per_view))+
+  geom_point()+
+  geom_label(aes(label = title), nudge_y = 0.0001)
+```
+
+# Aggregate for Multiple Column
+
+Saya ingin secara sekaligus mendapatkan rata-rata like per view, dislike per view dan rata-rata dari comment per view untuk setiap `channel` dan `category_id`. 
+
+Setelah itu, saya ingin melihat hubungan like per view dengan comment per view
+
+What do we do?
+
+- agregasi untuk like per view, dislike per view, comment per view
+
+Step 1: Menyiapkan Data
+```{r}
+agregat_like_per_view <- aggregate(like_per_view + dislike_per_view + comment_per_view ~ channel_title + category_id, vids.unik,FUN = mean)
+
+agregat_like_per_view
+```
+
+Untuk agregasi data menghasilkan beberapa kolom sekaligus menggunakan `cbind()`
+
+```{r}
+data_viz_agg <- aggregate(cbind(like_per_view, dislike_per_view, comment_per_view) ~ channel_title + category_id, 
+          data = vids.unik, FUN = mean)
+
+data_viz_agg
+```
+
+
+Step 2: Membuat Plot
+
+geom_smooth() untuk membuat garis tren berdasarkan x dan y. Pilihan bentuk garis bisa diatur pada parameter `method`. Secara otomatis, `geom_smooth` memilih garis yang paling sesuai polanya dengan data, sehingga belum tentu berupa garis lurus
+
+```{r}
+ggplot(data = data_viz_agg, aes(x = like_per_view, y = comment_per_view)) +
+  geom_point() +
+  geom_smooth(method = "lm") # lm = linear model atau garis lurus
+```
+
+Highlight data-data spesial (berada di luar pola)
+
+Buat data baru
+```{r}
+data_viz_spesial <- data_viz_agg[data_viz_agg$comment_per_view > 0.045 |
+                                   data_viz_agg$like_per_view > 0.2, ]
+data_viz_spesial
+```
+
+Menuliskan text ke dalam plot
+```{r}
+ggplot(data = data_viz_agg, aes(x = like_per_view, y = comment_per_view)) +
+  geom_point() +
+  geom_smooth(method = "lm") + # lm = linear model atau garis lurus 
+  geom_text(data = data_viz_spesial, aes(label = channel_title))
+```
+
+Jika ingin text memiliki label atau berada di dalam persegi panjang
+```{r}
+ggplot(data = data_viz_agg, aes(x = like_per_view, y = comment_per_view)) +
+  geom_point() +
+  geom_smooth(method = "lm") + # lm = linear model atau garis lurus 
+  geom_label(data = data_viz_spesial, aes(label = channel_title))
+```
+
+
+Special kind of text with repel untuk menghindari overlap atau tumpang tindih text
+
+```{r}
+#install.packages("ggrepel")
+library(ggrepel)
+```
+
+
+```{r}
+ggplot(data = data_viz_agg, aes(x = like_per_view, y = comment_per_view)) +
+  geom_point() +
+  geom_smooth(method = "lm") + # lm = linear model atau garis lurus 
+  geom_label_repel(data = data_viz_spesial, aes(label = channel_title)) #geom_label_repel instead of geom_label
+```
+
+`box.pading` untuk mengatur jarak label ke titik observasinya, semakin besar semakin jauh
+`direction` menentukan arah labelnya (x, y, atau both)
+```{r}
+ggplot(data = data_viz_agg, aes(x = like_per_view, y = comment_per_view)) +
+  geom_point() +
+  geom_smooth(method = "lm") + # lm = linear model atau garis lurus 
+  geom_label_repel(data = data_viz_spesial, aes(label = channel_title, color = category_id), 
+                   box.padding = 1, direction = "y", show.legend = F)+
+  geom_point(data = data_viz_spesial, aes(color = category_id))
+```
+
+Insight
+
+- hubungan like per view dengan comment per view: positif lemah (semakin besar like per view semakin besar comment per view)
+- beberapa channel yang spesial (di luar pola) berasal dari kategori music, style, dan science & tech
+
+**CURRENT AGENDA**
+Buat kelompok meja depan/belakang dan analisis (pilih salah satu) dari data `data_viz_agg`
+
+- hubungan like per view dengan dislike per view
+- hubungan comment per view dengan dislike per view
+
+Kita acak kelompok mana yang maju
+```{r}
+sample(1:7, 1)
+```
+
+# Facetting
+
+Saya buat scatterplot dari data vids.unik untuk melihat hubungan like_per_view dan comment_per_view
+
+nrow dan ncol untuk menentukan jumlah kolom dan baris
+
+memecah plot berdasarkan kolom `category_id`
+```{r}
+ggplot(data = vids.unik, mapping = aes(x = like_per_view, y = comment_per_view)) +
+  geom_point(aes(color = category_id), show.legend = F) +
+  facet_wrap(~category_id, ncol = 6) # memecah 1 plot menjadi beberapa plot
+```
+
+Memecah plot berdasarkan kolom `publish_when`
+
+```{r}
+ggplot(data = vids.unik, mapping = aes(x = like_per_view, y = comment_per_view)) +
+  geom_point(aes(color = category_id), show.legend = F) +
+  facet_wrap(~publish_when) # memecah 1 plot menjadi beberapa plot
+```
+
+facet_grid untuk membagi menggunakan 1 atau lebih variabel
+
+memecah plot berdasarkan kolom `publish_when` dan `publish_day`
+```{r}
+ggplot(data = vids.unik, mapping = aes(x = like_per_view, y = comment_per_view)) +
+  geom_point(aes(color = category_id), show.legend = F) +
+  facet_grid(rows = vars(publish_when), cols = vars(publish_day))
+```
+
+Langkah-langkah membuat visualisasi
+
+Step 1: Menyiapkan data
+Step 2: Membuat plot
+Step 3: Percantik atau beautify
+
+bisa menggunakan scale: yang berhubungan dengan aes
+bisa menggunakan theme: jangkauannya lebih aes
+
+```{r}
+ggplot(data = vids.unik, mapping = aes(x = like_per_view, y = comment_per_view)) +
+  geom_point(aes(color = category_id), show.legend = F) +
+  facet_wrap(~publish_when)+
+  theme_classic()
+```
+
+```{r}
+#install.packages("ggthemes")
+library(ggthemes)
+```
+
+`ggthemes` punya variasi template theme yang beragam
+```{r}
+ggplot(data = vids.unik, mapping = aes(x = like_per_view, y = comment_per_view)) +
+  geom_point(aes(color = category_id), show.legend = F) +
+  facet_wrap(~publish_when) +
+  theme_pander() +
+  labs(title = "Judul")
+```
+
+Summary
+
+- geom_text dan geom_label bisa dipakai untuk memasukkan tulisan ke dalam plot
+- geom_text_repel dan geom_label_repel (dari package `ggrepel`) digunakan untuk tidak overlap atau tumpang tindih
+- geom_smooth mencari model atau garis tren sesuai x dan y
+- untuk higlight beberapa observasi kita harus siapkan datanya dulu
+- facetting tadi untuk memecah 1 plot menjadi beberapa plot berdasarkan variabel
+- themes membantu mempercantik atau supaya plotnya lebih bagus untuk publikasi
+- Flow membuat plot:
+  1. membuat objek ggplot(data dan aes)
+  2. masukkan geom yang dibutuhkan
+  3. memberi judul dengan labs()
+  4. pengaturan lain(misal coord_flip atau theme)
+
+
+----------------------------- Day 4 -------------------------------------
+
+
+# Long and Wide Data Frame
+
+```{r}
+#install.packages(c("reshape2", "tidyr"))
+library(reshape2)
+library(tidyr)
+```
+
+Kita punya data `data_viz_agg`. Kita ambil 10 channel dengan `dislike_per_view` terbanyak
+
+Step
+1. Order
+2. Head
+
+```{r}
+top_viz_agg <- data_viz_agg[  order(data_viz_agg$dislike_per_view, 
+                                    decreasing = T), ]
+top_viz_agg <- head(top_viz_agg, 10)
+top_viz_agg
+```
+
+Kita ubah `data_viz_agg` menjadi dari format `wide` menjadi `long`
+
+## Menggunakan package `reshape2`
+
+Mengubah `data_viz_agg` menjadi format long dengan `melt`
+
+```{r}
+data_long <- melt(top_viz_agg)
+data_long[order(data_long$channel_title), ]
+```
+
+Mengembalikan ke bentuk asal atau merubah ke dalam bentuk `wide` dengan `dcast`
+
+formula: 
+kolom yang jadi id (channel_title + category_id) ~ kolom hasil long (variable)
+
+```{r}
+dcast(data = data_long, 
+      formula = channel_title + category_id ~ variable, 
+      value.var =  "value")
+```
+
+dcast(data = negara, 
+formula = country + region ~ indicator, value.var = "value")
+
+## Menggunakan package `tidyr`
+
+Mengubah `data_viz_agg` menjadi format long dengan `pivot_longer`
+
+```{r}
+data_long <- pivot_longer(data = top_viz_agg,
+                          # kolom yang mau disatukan (dibuat long)
+                          cols =  c(like_per_view,
+                                    dislike_per_view,
+                                    comment_per_view),
+                          # nama kolom baru
+                          names_to = "engagement", 
+                          values_to = "value")
+
+data_long
+```
+
+Mengembalikan ke bentuk asal atau merubah ke dalam bentuk `wide` dengan `pivot_wider`
+
+```{r}
+pivot_wider(data = data_long, 
+            names_from = engagement, 
+            values_from = value)
+```
+
+Membuat berbagai variansi Bar Chart dengan mengatur `position`
+
+Ada tiga opsi: stack, dodge, dan fill
+
+position = "stack" atau default
+```{r}
+ggplot(data = data_long, aes(x = reorder(channel_title, value), 
+                             y = value,
+                             fill = engagement)) +
+  geom_col(position = "stack") +
+  coord_flip()
+```
+
+position = "dodge"
+```{r}
+ggplot(data = data_long, aes(x = reorder(channel_title, value), 
+                             y = value,
+                             fill = engagement)) +
+  geom_col(position = "dodge") +
+  coord_flip()
+```
+
+position = "fill" untuk menunjukkan komposisi atau proporsi di setiap `channel`
+```{r}
+ggplot(data = data_long, aes(x = reorder(channel_title, value), 
+                             y = value,
+                             fill = engagement)) +
+  geom_col(position = "fill") +
+  coord_flip()+
+  #mengatur angka yang muncul di y adalah dari 0 sampai 1 setiap kelipatan 0.1
+  scale_y_continuous(breaks = seq(0, 1, 0.1))
+```
+
+# Theme
+
+theme( apa yang mau diatur, cek di gambar panel.png)
+
+```{r}
+p1 <- ggplot(data = data_long, aes(x = reorder(channel_title, value), 
+                             y = value,
+                             fill = engagement)) +
+  geom_col(position = "dodge") +
+  #membuat garis lurus yang menunjukkan rata-rata value
+  geom_hline(aes(yintercept = mean(data_long$value)))+
+  #mengatur angka yang muncul di y adalah dari 0 sampai 1 setiap kelipatan 0.1
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) +
+  labs(title = "Social Media Engagement",
+       x = "Channel", y = "Value",
+       caption = "Sumber: Youtube")
+
+  p1+
+  theme_minimal()+
+  theme(panel.background = element_rect(fill = "orange"),
+        plot.title = element_text(face = "italic", hjust = 0.5),
+        legend.title = element_text(hjust = 0.5),
+        axis.text.y = element_text(colour = "red"),
+        panel.grid = element_blank())+
+  coord_flip()
+```
+
+# Leaflet
+
+Menunjukkan peta posisi dan persebaran puskesmas di Jakarta (data dari Kementrian Kesehatan Indonesia) menggunakan `leaflet`
+
+```{r}
+puskesmas <- read.csv("puskesmas.csv")
+puskesmas
+```
+
+Cara membuat leaflet flownya selalu seperti di bawah, tinggal mengganti-ganti kontennya saja.
+
+```{r}
+#install.packages("leaflet")
+library(leaflet)
+
+# membuat icon
+ico <- makeIcon(
+    iconUrl = "logo-rumah-sakit.png",
+    iconWidth= 20, iconHeight=20
+)
+
+# membuat object leaflet(), sama seperti awalan ggplot()
+map1 <- leaflet()
+
+# membuat tiles atau gambar peta
+map1 <- addTiles(map1)
+
+# membuat konten popup dengan gaya penulisan html
+content_popup <- paste(sep = " ",
+                 puskesmas$puskesmas, "<br>",
+                 "Status:", puskesmas$status_akreditasi, "<br>",
+                 "Jumlah Dokter Umum:", puskesmas$dokter_umum, "<br>",
+                 "Jumlah Tenaga Farmasi:", puskesmas$farmasi
+                 )
+
+# memasukkan marker atau titik sesuai dengan data
+map1 <- addMarkers(map = map1, 
+                   lng =  puskesmas$bujur, # garis bujur
+                   lat = puskesmas$lintang, # garis lintang
+                   icon = ico, #icon
+                   
+                   popup = content_popup, #popup atau tulisan
+                   
+                   clusterOptions = markerClusterOptions() # membuat cluster supaya tidak overlap
+                   )
+
+map1
+```
+
+# Membuat plot tren garis
+
+```{r}
+library(lubridate)
+vids.unik$publish_month <- month(vids.unik$publish_time, label = T)
+
+# mencari rata-rata view per bulan
+vids_monthly <- aggregate(views ~ publish_month, data = vids.unik, mean)
+vids_monthly
+vids.unik
+```
+
+jika x bertipe data `factor` tidak perlu aes(group = 1)
+```{r}
+ggplot(data = vids_monthly, aes(x = publish_month,
+                                y = views)) +
+  geom_line(aes(group = 1))
+```
+
+jika x bertipe data `date` tidak perlu aes(group = 1)
+```{r}
+ggplot(vids.unik, aes(x = trending_date, 
+                      y = views)) +
+  geom_line()
+```
+
+
