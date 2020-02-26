@@ -170,18 +170,12 @@ prop.table(table(DF$RainTomorrow))
 
 Temporarily, we can consider the proportion is sufficiently balanced. If later we will find this is not balanced enough, we will tackle with this problem.
 
-To make sure, we can display the dataframe information once again.
-
-```{r}
-str(DF)
-```
-
 ## Multicollinearity
 
 ```{r}
-library(GGally)
+# library(GGally)
 
-GGally::ggcorr(DF %>% select(-RainTomorrow), label = T)
+# GGally::ggcorr(DF %>% select(-RainTomorrow), label = T)
 ggcorrplot::ggcorrplot(DF %>% select(-RainTomorrow) %>% cor(),
   hc.order = TRUE, type = "lower",
   lab = TRUE,
@@ -189,14 +183,13 @@ ggcorrplot::ggcorrplot(DF %>% select(-RainTomorrow) %>% cor(),
   ggtheme = ggplot2::theme_dark(),
 )
 
-GGally::ggpairs(DF %>% select(-RainTomorrow))
-pairs.panels(DF %>% select(-RainTomorrow))
+# GGally::ggpairs(DF %>% select(-RainTomorrow))
+# pairs.panels(DF %>% select(-RainTomorrow))
 ```
 
 ```{r}
 DFcomb <- combn(colnames(DF[,1:16]), 2)
 Alpha <- 0.05
-
 
 for (i in 1:dim(DFcomb)[2]) {
   print(paste0("Cor test between ", DFcomb[1,i], " and ", DFcomb[2,i]))
@@ -208,6 +201,80 @@ for (i in 1:dim(DFcomb)[2]) {
 }
 ```
 
+Surprisingly, all predictor variables indicate multicollinearity to each other. But, since we have no other variables except the ones provided, we can keep them all.
+
+# Modelling and Predictions
+
+## Splitting
+
+```{r}
+set.seed(1)
+idx <- initial_split(DF, prop = 0.8, strata = RainTomorrow)
+DF_train <- training(idx)
+DF_test <- testing(idx)
+prop.table(table(DF_train$RainTomorrow)) # Check train dataset proportion after split
+prop.table(table(DF_test$RainTomorrow)) # Check test dataset proportion after split
+
+# Split the predictors and the target of train dataset for KNN model usage
+X_train <- DF_train[,-ncol(DF_train)]
+y_train <- DF_train[,ncol(DF_train)]
+
+# Split the predictors and the target of test dataset for KNN model usage
+X_test <- DF_test[,-ncol(DF_test)]
+y_test <- DF_test[,ncol(DF_test)]
+```
+
+## Create the Model
+
+### Logistic Regression Model
+
+```{r}
+modelDF_log <- glm(formula = RainTomorrow ~ ., data = DF_train, family = "binomial", )
+summary(modelDF_log)
+```
+
+### KNN Data Pre-Processing - Scalling
+
+```{r}
+X_train.scaled <- scale(x = X_train)
+X_test.scaled <- scale(x = X_test, 
+                       center = attr(X_train.scaled, "scaled:center"),
+                       scale = attr(X_train.scaled, "scaled:scale"))
+```
+
+## Predictions
+
+### Logistic Regression Prediction
+
+```{r}
+predict_log <- predict(object = modelDF_log, newdata = DF_test, type = "response")
+DF_test$ypred_prob <- predict_log
+DF_test$ypred_label <- ifelse(DF_test$ypred_prob )
+
+unique(DF_test$RainTomorrow)
+```
+
+### KNN Prediction
+
+* Find optimum `K`
+
+```{r}
+K <- sqrt(nrow(X_train))
+K
+```
+
+As the target variable has two classes only (`Yes` or `No`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 337`, it is enough for the prediction.
+
+```{r}
+predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = round(K))
+```
+
+# Evaluation
+
+```{r}
+confusionMatrix(data = predict_log, reference = y_test)
+confusionMatrix(data = predict_knn, reference = y_test)
+```
 
 
 

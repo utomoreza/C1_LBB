@@ -1,6 +1,7 @@
 "0","library(tidyverse) # for data wrangling"
 "0","library(caret) # for confusion matrix"
 "0","library(gtools) # for converting log of odds to probs"
+"0","library(PerformanceAnalytics) # for pair plotting"
 "0","library(car) # for executing VIF test"
 "0","library(rsample) # for splitting dataset into train and test with controlled proportion"
 "0","library(class) # for KNN"
