@@ -229,7 +229,7 @@ y_test <- DF_test[,ncol(DF_test)]
 ### Logistic Regression Model
 
 ```{r}
-modelDF_log <- glm(formula = RainTomorrow ~ ., data = DF_train, family = "binomial", )
+modelDF_log <- glm(formula = RainTomorrow ~ ., data = DF_train, family = "binomial")
 summary(modelDF_log)
 ```
 
@@ -249,9 +249,7 @@ X_test.scaled <- scale(x = X_test,
 ```{r}
 predict_log <- predict(object = modelDF_log, newdata = DF_test, type = "response")
 DF_test$ypred_prob <- predict_log
-DF_test$ypred_label <- ifelse(DF_test$ypred_prob )
-
-unique(DF_test$RainTomorrow)
+DF_test$ypred_label <- ifelse(DF_test$ypred_prob > 0.5, "Yes", "No")
 ```
 
 ### KNN Prediction
@@ -266,7 +264,7 @@ K
 As the target variable has two classes only (`Yes` or `No`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 337`, it is enough for the prediction.
 
 ```{r}
-predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = round(K))
+predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = 3)
 ```
 
 # Evaluation
