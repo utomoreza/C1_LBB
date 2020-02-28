@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Introduction {#intro}
 
-This article aims to accomplish [Regression Model](https://algorit.ma/course/regression-models/) course at Algoritma. The dataset used is obtained from [Kaggle](https://www.kaggle.com/jsphyg/weather-dataset-rattle-package), "Rain in Australia: Predict rain tomorrow in Australia". You could see the source code in my GitHub account [here](https://github.com/utomoreza/C1_LBB).
+This article aims to accomplish [Classification in Machine Learning 1](https://algorit.ma/course/classification-1/) course at Algoritma. The dataset used is obtained from [the University of California at Irvine Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/Cervical+cancer+%28Risk+Factors%29#), "Cervical cancer (Risk Factors)". You could see the source code fully in my GitHub account [here](https://github.com/utomoreza/C1_LBB).
 
 ## Aim
 
@@ -64,31 +64,64 @@ This article is arranged as follows.
 
 # Metadata {#meta}
 
-## Context
-
-Predict whether or not it will rain tomorrow by training a binary classification model on target `RainTomorrow`.
-
 ## Content
 
-This dataset contains daily weather observations from numerous Australian weather stations. The target variable `RainTomorrow` means: Did it rain the next day? Yes or No.
+This dataset focuses on the prediction of indicators/diagnosis of cervical cancer. The features cover demographic information, habits, and historic medical records. The dataset was collected at [*Hospital Universitario de Caracas*]() in Caracas, Venezuela. The dataset comprises demographic information, habits, and historic medical records of 858 patients. Several patients decided not to answer some of the questions because of privacy concerns (missing values).
 
-Note: You should exclude the variable Risk-MM when training a binary classification model. Not excluding it will leak the answers to your model and reduce its predictability. Read more about it [here](https://www.kaggle.com/jsphyg/weather-dataset-rattle-package/discussion/78316).
+## Attribute Information
 
-## Source & Acknowledgements
+* (int) Age
+* (int) Number of sexual partners
+* (int) First sexual intercourse (age)
+* (int) Num of pregnancies
+* (bool) Smokes
+* (bool) Smokes (years)
+* (bool) Smokes (packs/year)
+* (bool) Hormonal Contraceptives
+* (int) Hormonal Contraceptives (years)
+* (bool) IUD
+* (int) IUD (years)
+* (bool) STDs
+* (int) STDs (number)
+* (bool) STDs:condylomatosis
+* (bool) STDs:cervical condylomatosis
+* (bool) STDs:vaginal condylomatosis
+* (bool) STDs:vulvo-perineal condylomatosis
+* (bool) STDs:syphilis
+* (bool) STDs:pelvic inflammatory disease
+* (bool) STDs:genital herpes
+* (bool) STDs:molluscum contagiosum
+* (bool) STDs:AIDS
+* (bool) STDs:HIV
+* (bool) STDs:Hepatitis B
+* (bool) STDs:HPV
+* (int) STDs: Number of diagnosis
+* (int) STDs: Time since first diagnosis
+* (int) STDs: Time since last diagnosis
+* (bool) Dx:Cancer
+* (bool) Dx:CIN
+* (bool) Dx:HPV
+* (bool) Dx
+* (bool) Hinselmann: target variable
+* (bool) Schiller: target variable
+* (bool) Cytology: target variable
+* (bool) Biopsy: target variable
 
-Observations were drawn from numerous weather stations. The daily observations are available from http://www.bom.gov.au/climate/data. Copyright Commonwealth of Australia 2010, Bureau of Meteorology.
+## Source
 
-Definitions adapted from http://www.bom.gov.au/climate/dwo/IDCJDW0000.shtml
+* Relevant Paper
 
-This dataset is also available via the R package rattle.data and at https://rattle.togaware.com/weatherAUS.csv.
-Package home page: http://rattle.togaware.com. Data source: http://www.bom.gov.au/climate/dwo/ and http://www.bom.gov.au/climate/data.
+Kelwin Fernandes, Jaime S. Cardoso, and Jessica Fernandes. *Transfer Learning with Partial Observability Applied to Cervical Cancer Screening*. Iberian Conference on Pattern Recognition and Image Analysis. Springer International Publishing, 2017.
 
-And to see some nice examples of how to use this data: https://togaware.com/onepager/
+* Citation Request
+
+Kelwin Fernandes, Jaime S. Cardoso, and Jessica Fernandes. *Transfer Learning with Partial Observability Applied to Cervical Cancer Screening*. Iberian Conference on Pattern Recognition and Image Analysis. Springer International Publishing, 2017.
 
 # Preparation {#prep}
 
 ```{r message=FALSE, echo=FALSE}
 library(tidyverse) # for data wrangling
+library(plotly) # for plotting using plotly style
 library(caret) # for confusion matrix
 library(gtools) # for converting log of odds to probs
 library(PerformanceAnalytics) # for pair plotting
@@ -98,107 +131,96 @@ library(class) # for KNN
 ```
 
 ```{r}
-weatherAU <- read.csv("weatherAUS.csv")
-weatherAU
+sonar <- read.csv("sonar.all-data", header = F)
+head(sonar)
+```
+
+```{r}
+colnames(sonar) <- c(paste0("energy",c(1:60)), "type")
+head(sonar)
 ```
 
 # Data Wrangling
 
 ```{r}
-str(weatherAU)
-```
-
-Since we will compare the performance of Logistic Regression and KNN and KNN is not suitable to categorical predictor variables, we're going to drop those categorical ones. In addition, we should remove `RISK_MM` and `Date` features as well since `RISK_MM` have to be deleted as explained in the beginning and we do not consider time series forecasting so that we do not need `Date`.
-
-```{r}
-categorical <- vector()
-for (i in 1:(length(weatherAU)-1)) {
-  if (class(weatherAU[,i]) == "factor") {
-    category <- colnames(weatherAU)[i]
-    categorical <- c(categorical, category)
-  }
-}
-weatherAU[,categorical] # to be removed
-DF <- weatherAU %>% 
-  select(-(categorical)) %>% 
-  select(-RISK_MM)
-head(DF)
-ncol(DF)
-```
-
-Proportion of missing values
-
-```{r}
-colSums(is.na(DF))
-cat("\n")
-colSums(is.na(DF))/nrow(DF)
+anyNA(sonar)
 ```
 
 ```{r}
-summary(DF)
+str(sonar)
+```
+
+```{r}
+summary(sonar)
 ```
 
 ```{r warning=FALSE}
-DF %>% select(colnames(.)[1:17]) %>% 
-  pivot_longer(cols = colnames(.)[1:16], names_to = "Type", values_to = "Value") %>% 
-  mutate(Type = as.factor(Type)) %>% 
-  ggplot(aes(x = Type,
-             y = Value)) + 
-  coord_flip() + 
-  geom_boxplot(aes(fill = Type), show.legend = F)
+
+p <- sonar %>% select(colnames(.)[-61]) %>%
+  pivot_longer(cols = colnames(.), names_to = "Energy", values_to = "Value") %>%
+  arrange(Energy) %>% 
+  mutate(Energy = as.factor(Energy)) %>%
+  ggplot(aes(x = Energy,
+             y = Value)) +
+  coord_flip() +
+  geom_boxplot(aes(fill = Energy), show.legend = F) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "none") %>% 
+ggplotly(p)
 ```
-
-Most predictors have outliers (we will deal with this outliers later in [a]()). So, the appropriate approach to fill missing values is by imputating them with median value as median is robust with outliers.
-
-```{r}
-for (i in 1:(length(DF)-1)) {
-    DF[,i] <- replace_na(data = DF[,i], replace = median(DF[,i], na.rm = T))
-}
-anyNA(DF)
-```
-
-Nice. No missing value anymore.
 
 # Exploratory Data Analysis
 
 ## Target Variable Proportion
 
 ```{r}
-table(DF$RainTomorrow)
-prop.table(table(DF$RainTomorrow))
+table(sonar$type)
+prop.table(table(sonar$type))
 ```
-
-Temporarily, we can consider the proportion is sufficiently balanced. If later we will find this is not balanced enough, we will tackle with this problem.
 
 ## Multicollinearity
 
 ```{r}
 # library(GGally)
 
-# GGally::ggcorr(DF %>% select(-RainTomorrow), label = T)
-ggcorrplot::ggcorrplot(DF %>% select(-RainTomorrow) %>% cor(),
-  hc.order = TRUE, type = "lower",
-  lab = TRUE,
-  digits = 1,
-  ggtheme = ggplot2::theme_dark(),
-)
+GGally::ggcorr(sonar %>% select(-type))
+# ggcorrplot::ggcorrplot(sonar %>% select(-type) %>% cor(),
+#   hc.order = TRUE, 
+#   type = "lower",
+#   lab = TRUE,
+#   digits = 1,
+#   ggtheme = ggplot2::theme_dark(),
+# )
 
 # GGally::ggpairs(DF %>% select(-RainTomorrow))
 # pairs.panels(DF %>% select(-RainTomorrow))
 ```
 
 ```{r}
-DFcomb <- combn(colnames(DF[,1:16]), 2)
+sonarComb <- combn(colnames(sonar[,-61]), 2)
 Alpha <- 0.05
-
-for (i in 1:dim(DFcomb)[2]) {
-  print(paste0("Cor test between ", DFcomb[1,i], " and ", DFcomb[2,i]))
-  corTest <- cor.test(DF[,DFcomb[1,i]], DF[,DFcomb[2,i]])
-  ifelse(corTest$p.value < Alpha, 
-         print("Multicollinear detected"), 
-         print("Safe! No Multicollinear"))
-  cat("\n")
+multicolRes <- data.frame(vs = 1:dim(sonarComb)[2], 
+                          cor = 1:dim(sonarComb)[2],
+                          res = 1:dim(sonarComb)[2])
+for (i in 1:dim(sonarComb)[2]) {
+  multicolRes$vs[i] <- paste0(sonarComb[1,i], " & ", sonarComb[2,i])
+  corTest <- cor.test(sonar[,sonarComb[1,i]], sonar[,sonarComb[2,i]])
+  multicolRes$cor[i] <- corTest$p.value
+  multicolRes$res[i] <- ifelse(corTest$p.value < Alpha, 
+                               "Yes", 
+                               "No")
+  # multiResults <- c(multiResults, res)
 }
+multicolRes
+```
+
+```{r}
+table(multicolRes$res)
+```
+
+```{r}
+multicolRes[multicolRes$res == "No",]
 ```
 
 Surprisingly, all predictor variables indicate multicollinearity to each other. But, since we have no other variables except the ones provided, we can keep them all.
@@ -209,19 +231,20 @@ Surprisingly, all predictor variables indicate multicollinearity to each other. 
 
 ```{r}
 set.seed(1)
-idx <- initial_split(DF, prop = 0.8, strata = RainTomorrow)
-DF_train <- training(idx)
-DF_test <- testing(idx)
-prop.table(table(DF_train$RainTomorrow)) # Check train dataset proportion after split
-prop.table(table(DF_test$RainTomorrow)) # Check test dataset proportion after split
+idx <- initial_split(sonar, prop = 0.8, strata = type)
+sonar_train <- training(idx)
+sonar_test <- testing(idx)
+
+prop.table(table(sonar_train$type)) # Check train dataset proportion after split
+prop.table(table(sonar_test$type)) # Check test dataset proportion after split
 
 # Split the predictors and the target of train dataset for KNN model usage
-X_train <- DF_train[,-ncol(DF_train)]
-y_train <- DF_train[,ncol(DF_train)]
+X_train <- sonar_train[,-ncol(sonar_train)]
+y_train <- sonar_train[,ncol(sonar_train)]
 
 # Split the predictors and the target of test dataset for KNN model usage
-X_test <- DF_test[,-ncol(DF_test)]
-y_test <- DF_test[,ncol(DF_test)]
+X_test <- sonar_test[,-ncol(sonar_test)]
+y_test <- sonar_test[,ncol(sonar_test)]
 ```
 
 ## Create the Model
@@ -229,9 +252,16 @@ y_test <- DF_test[,ncol(DF_test)]
 ### Logistic Regression Model
 
 ```{r}
-modelDF_log <- glm(formula = RainTomorrow ~ ., data = DF_train, family = "binomial")
-summary(modelDF_log)
+model_log <- glm(formula = type ~ ., data = sonar_train, family = "binomial")
+summary(model_log)
 ```
+
+`energy50` > culprit
+
+```{r}
+table(sonar$type, sonar$energy50)
+```
+
 
 ### KNN Data Pre-Processing - Scalling
 
@@ -247,9 +277,12 @@ X_test.scaled <- scale(x = X_test,
 ### Logistic Regression Prediction
 
 ```{r}
-predict_log <- predict(object = modelDF_log, newdata = DF_test, type = "response")
-DF_test$ypred_prob <- predict_log
-DF_test$ypred_label <- ifelse(DF_test$ypred_prob > 0.5, "Yes", "No")
+predict_log <- predict(object = model_log, newdata = sonar_test, type = "response")
+sonar_test$ypred_prob <- predict_log
+sonar_test$ypred_label <- ifelse(sonar_test$ypred_prob > 0.5, "R", "M")
+# negative class is M
+# positive class is R
+# since at the beginning, R automatically sets "M" as the first as class, meaning the negative class
 ```
 
 ### KNN Prediction
@@ -261,18 +294,72 @@ K <- sqrt(nrow(X_train))
 K
 ```
 
-As the target variable has two classes only (`Yes` or `No`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 337`, it is enough for the prediction.
+As the target variable has two classes only (`R` or `M`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 13`, it is enough for the prediction.
 
 ```{r}
-predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = 3)
+predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = 19)
+table(predict_knn, y_test)
+MLmetrics::Accuracy(y_pred = predict_knn, y_true = y_test)
 ```
 
 # Evaluation
 
+## Confusion Matrix
 ```{r}
-confusionMatrix(data = predict_log, reference = y_test)
-confusionMatrix(data = predict_knn, reference = y_test)
+confusionMatrix(data = as.factor(sonar_test$ypred_label), reference = y_test, positive = "R")
+confusionMatrix(data = predict_knn, reference = y_test, positive = "R")
 ```
+
+## ROC/AUC
+
+```{r}
+library(ROCR)
+df_ <- data.frame("prediction" = predict_log, 
+                      "trueclass" = as.numeric(y_test == "R"))
+
+df__roc <- prediction(df_$prediction, df_$trueclass)  
+plot(performance(df__roc, "tpr", "fpr"))
+
+auc <- ROCR::performance(prediction.obj = df__roc, "auc")
+auc@y.values[[1]]
+```
+
+# Model Tuning
+
+## Tuning KNN
+
+### Find best K
+
+```{r}
+library(MLmetrics)
+oddK_idx <- sapply(1:(nrow(X_train)-1), function(x) {ifelse(x%%2 == 1, T, F)})
+optK <- data.frame(1:(nrow(X_train)-1))[oddK_idx,]
+optKNN <- data.frame(K = 1:length(optK), acc = 1:length(optK))
+
+for (i in 1:length(optK)) {
+  predknn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = optK[i])
+  optKNN$K[i] <- optK[i]
+  optKNN$acc[i] <- Accuracy(predknn, y_test)
+}
+maxAcc <- optKNN[optKNN$acc == max(optKNN$acc),]
+label <- paste0(round(maxAcc$acc, 2), " when K = ", maxAcc$K)
+optKNN %>% ggplot(aes(x = K,
+                      y = acc)) +
+  geom_line(color = "blue") +
+  geom_point(data = maxAcc, aes(x = K,
+                                y = acc)) +
+  geom_label(data = maxAcc, aes(label = label), position = position_dodge(20), label.size = 0.05) +
+  labs(title = "No of K vs Accuracy in KNN prediction",
+       x = "Number of Ks",
+       y = "Accuracy")
+```
+
+
+
+
+
+
+
 
 
 
