@@ -92,6 +92,7 @@ library(PerformanceAnalytics) # for pair plotting
 library(car) # for executing VIF test
 library(rsample) # for splitting dataset into train and test with controlled proportion
 library(class) # for KNN
+library(MLmetrics) # for calculating accuracy
 ```
 
 ```{r}
@@ -146,12 +147,11 @@ prop.table(table(sonar$type))
 ## Multicollinearity
 
 ```{r}
-# library(GGally)
-
-ggcorrplot::ggcorrplot(temp %>% cor())
-
 temp <- sonar %>% select(-type)
 colnames(temp) <- c(1:60)
+ggcorrplot::ggcorrplot(temp %>% cor())
+
+
 GGally::ggcorr(temp)
 # ggcorrplot::ggcorrplot(sonar %>% select(-type) %>% cor(),
 #   hc.order = TRUE, 
@@ -165,32 +165,25 @@ GGally::ggcorr(temp)
 # pairs.panels(DF %>% select(-RainTomorrow))
 ```
 
-Only take multiplication of 5
+There is a unique pattern discovered from above figure. Each variable has large positive correlation with their next neighbors. Therefore, we have to remove this pattern by dropping the adjacent neighbors of each variable. We can carry out this by only take the columns with multiplication of 3, 4, or 5. As the beginning, I pick the multiplication of 4 to divide the number of predictor variables.
 
 ```{r}
-idxFives <- c(1, seq(from = 4, to = ncol(temp), by = 4))
-GGally::ggcorr(temp[,idxFives], label = T)
-
-oneTo20 <- 1:20
-GGally::ggcorr(temp[,1:20], label = T)
-
-ggcorrplot::ggcorrplot(temp[,1:60] %>% cor())
+idx <- c(1, seq(from = 4, to = ncol(temp), by = 4))
+GGally::ggcorr(temp[,idx], label = T)
+DF <- sonar[,c(idx,61)] # subset only necessary columns, i.e. the multipl of 4
 ```
 
-```{r}
-60/4
-```
-
+Nice. We have removed all with high correlation. Now, we should check the p-value of correlation test.
 
 ```{r}
-sonarComb <- combn(colnames(sonar[,-61]), 2)
+sonarComb <- combn(colnames(DF[,-61]), 2)
 Alpha <- 0.05
 multicolRes <- data.frame(vs = 1:dim(sonarComb)[2], 
                           cor = 1:dim(sonarComb)[2],
                           res = 1:dim(sonarComb)[2])
 for (i in 1:dim(sonarComb)[2]) {
   multicolRes$vs[i] <- paste0(sonarComb[1,i], " & ", sonarComb[2,i])
-  corTest <- cor.test(sonar[,sonarComb[1,i]], sonar[,sonarComb[2,i]])
+  corTest <- cor.test(DF[,sonarComb[1,i]], DF[,sonarComb[2,i]])
   multicolRes$cor[i] <- corTest$p.value
   multicolRes$res[i] <- ifelse(corTest$p.value < Alpha, 
                                "Yes", 
@@ -216,7 +209,7 @@ Surprisingly, all predictor variables indicate multicollinearity to each other. 
 
 ```{r}
 set.seed(1)
-idx <- initial_split(sonar, prop = 0.8, strata = type)
+idx <- initial_split(DF, prop = 0.8, strata = type)
 sonar_train <- training(idx)
 sonar_test <- testing(idx)
 
@@ -251,21 +244,9 @@ rownames(sonar_test) <- NULL
 ### Logistic Regression Model
 
 ```{r}
-model_log <- glm(formula = type ~ energy1 + energy52 + energy21, data = as.data.frame(X_train.scaled1), family = "binomial", maxit = 30)
+model_log <- glm(formula = type ~ ., data = sonar_train, family = "binomial", maxit = 30)
 summary(model_log)
 ```
-
-```{r}
-as.data.frame(X_train.scaled1)
-```
-
-`energy50` > culprit
-
-```{r}
-caret::
-
-```
-
 
 ### KNN Data Pre-Processing - Scalling
 
@@ -274,10 +255,6 @@ X_train.scaled <- scale(x = X_train)
 X_test.scaled <- scale(x = X_test, 
                        center = attr(X_train.scaled, "scaled:center"),
                        scale = attr(X_train.scaled, "scaled:scale"))
-
-dim(X_train.scaled)
-colnames(X_train.scaled1) <- c(paste0("energy",c(1:60)), "type")
-X_train.scaled1[,61] <- cbind(X_train.scaled, ifelse(y_train == "R", 1, 0))
 ```
 
 ## Predictions
@@ -305,14 +282,16 @@ K
 As the target variable has two classes only (`R` or `M`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 13`, it is enough for the prediction.
 
 ```{r}
-predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = 19)
+predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = 13)
 ```
 
 # Evaluation
 
 ## Confusion Matrix
 ```{r}
+print("Confusion Matrix of Log Regression Model")
 confusionMatrix(data = as.factor(sonar_test$ypred_label), reference = y_test, positive = "R")
+print("Confusion Matrix of KNN")
 confusionMatrix(data = predict_knn, reference = y_test, positive = "R")
 ```
 
@@ -320,24 +299,123 @@ confusionMatrix(data = predict_knn, reference = y_test, positive = "R")
 
 ```{r}
 library(ROCR)
+options(scipen = 999)
 df_ <- data.frame("prediction" = predict_log, 
                       "trueclass" = as.numeric(y_test == "R"))
 
-df__roc <- prediction(df_$prediction, df_$trueclass)  
-plot(performance(df__roc, "tpr", "fpr"))
+df__roc <- prediction(df_$prediction, df_$trueclass)
+perf <- performance(df__roc, "tpr", "fpr")
+rocDF <- data.frame(threshold = perf@alpha.values[[1]],
+                    tpr = perf@y.values[[1]],
+                    fpr = perf@x.values[[1]])
 
+ggplot(rocDF, aes(x = fpr, y = tpr)) +
+  geom_line(color = "blue") +
+  geom_point(color = "black") +
+  # geom_roc(n.cuts=20,labels=FALSE) +
+  # style_roc(theme = theme_grey) +
+  geom_abline(color = "grey", intercept = 0, slope = 1, linetype="dashed") +
+  labs(main = "Receiver operating characteristic curve",
+       x = "False positive rate",
+       y = "True positive rate")
+```
+
+```{r}
+# show AUC value
 auc <- ROCR::performance(prediction.obj = df__roc, "auc")
 auc@y.values[[1]]
 ```
 
 # Model Tuning
 
+## Tuning Logistic Regression
+
+```{r}
+energyInsignificant <- c("energy8", "energy28", "energy32", "energy40", "energy60")
+sonar_train2 <- sonar_train %>% select(-all_of(energyInsignificant))
+```
+
+```{r}
+model_log2 <- glm(formula = type ~ ., data = sonar_train2, family = "binomial", maxit = 30)
+summary(model_log2)
+```
+
+```{r}
+predict_log2 <- predict(object = model_log2, newdata = sonar_test, type = "response")
+sonar_test$ypred_prob2 <- predict_log2
+sonar_test$ypred_label2 <- ifelse(sonar_test$ypred_prob2 > 0.5, "R", "M")
+```
+
+```{r}
+confusionMatrix(as.factor(sonar_test$ypred_label2), sonar_test$type, positive = "R")
+```
+
+Tuning threshold
+
+```{r}
+options(scipen = 999)
+df_ <- data.frame("prediction" = predict_log2, 
+                      "trueclass" = as.numeric(y_test == "R"))
+
+df__roc <- prediction(df_$prediction, df_$trueclass)
+perf <- performance(df__roc, "tpr", "fpr")
+rocDF <- data.frame(threshold = perf@alpha.values[[1]],
+                    tpr = perf@y.values[[1]],
+                    fpr = perf@x.values[[1]])
+
+ggplot(rocDF, aes(x = fpr, y = tpr)) +
+  geom_line(color = "blue") +
+  geom_point(color = "black") +
+  # geom_roc(n.cuts=20,labels=FALSE) +
+  # style_roc(theme = theme_grey) +
+  geom_abline(color = "grey", intercept = 0, slope = 1, linetype="dashed") +
+  labs(main = "Receiver operating characteristic curve",
+       x = "False positive rate",
+       y = "True positive rate")
+```
+
+```{r}
+rocDF$threshold[1] <- 1
+rocDF$spec <- 1 - rocDF$fpr # find specificity value by 1 - false positive rate
+rocDF[which.max(rocDF$tpr + rocDF$spec),] # get the best threshold by finding maximum true positive rate and maximum specificity
+optThreshold <- rocDF[which.max(rocDF$tpr + rocDF$spec),1]
+```
+
+```{r}
+# show AUC value
+auc <- ROCR::performance(prediction.obj = df__roc, "auc")
+auc@y.values[[1]]
+```
+
+```{r}
+sonar_test$ypred_prob2b <- predict_log2
+sonar_test$ypred_label2b <- ifelse(sonar_test$ypred_prob2b > optThreshold, "R", "M")
+confusionMatrix(as.factor(sonar_test$ypred_label2b), sonar_test$type, positive = "R")
+```
+
+```{r}
+Accuracy(y_pred = sonar_test$ypred_label, y_true = sonar_test$type)
+Accuracy(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type)
+Accuracy(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type)
+```
+
+```{r}
+Recall(y_pred = sonar_test$ypred_label, y_true = sonar_test$type, positive = "R")
+Recall(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type, positive = "R")
+Recall(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type, positive = "R")
+```
+
+```{r}
+Precision(y_pred = sonar_test$ypred_label, y_true = sonar_test$type, positive = "R")
+Precision(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type, positive = "R")
+Precision(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type, positive = "R")
+```
+
 ## Tuning KNN
 
 ### Find best K
 
 ```{r}
-library(MLmetrics)
 oddK_idx <- sapply(1:(nrow(X_train)-1), function(x) {ifelse(x%%2 == 1, T, F)})
 optK <- data.frame(1:(nrow(X_train)-1))[oddK_idx,]
 optKNN <- data.frame(K = 1:length(optK), acc = 1:length(optK))
@@ -360,8 +438,26 @@ optKNN %>% ggplot(aes(x = K,
        y = "Accuracy")
 ```
 
+```{r}
+bestK <- maxAcc$K
+predict_knn2 <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = bestK)
+confusionMatrix(predict_knn2, reference = y_test, positive = "R")
+```
 
+```{r}
+Accuracy(y_pred = predict_knn, y_true = y_test)
+Accuracy(y_pred = predict_knn2, y_true = y_test)
+```
 
+```{r}
+Recall(y_pred = predict_knn, y_true = y_test, positive = "R")
+Recall(y_pred = predict_knn2, y_true = y_test, positive = "R")
+```
+
+```{r}
+Precision(y_pred = predict_knn, y_true = y_test, positive = "R")
+Precision(y_pred = predict_knn2, y_true = y_test, positive = "R")
+```
 
 
 
