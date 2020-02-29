@@ -1,6 +1,10 @@
 {
-    "path" : "~/Projects/C1_LBB",
+    "path" : "~/Projects/6. C1/5 Full days",
     "sortOrder" : [
+        {
+            "ascending" : false,
+            "columnIndex" : 4
+        },
         {
             "ascending" : true,
             "columnIndex" : 2
