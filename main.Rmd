@@ -24,30 +24,17 @@ This article aims to accomplish [Classification in Machine Learning 1](https://a
 
 ## Aim
 
-The goal is to model red wine quality based on physicochemical tests.
+The goal is to model a prediction to decide between mines and rocks based on sonar signals data.
 
 ## Objectives
 
-1. To solve the final model equation
+1. To compare between Logistic Regression and K-nearest neigbors performance
 
-2. To output the statistical values (adjusted) R-squared, Mean Squared Error (MSE), Root Mean Squared Error (RMSE), and MAE (Mean Absolute Error)
+2. To assess the models by the binary classification metrics, i.e. confusion matrix and Receiver Operating Characteristic (ROC) curve and Area Under the Curve (AUC).
 
-3. To examine the model including statistics and visualizations:
+3. To interpretate the model (only for Logistic Regression)
 
-+ Assess linearity of model (parameters)
-+ Assess serial independence of errors
-+ Assess heteroscedasticity
-+ Assess normality of residual distribution
-+ Assess multicollinearity
-
-4. To interpretate the model
-
-5. To consider other factors, such as:
-
-+ Are there any outliers?
-+ Are there missing values?
-
-6. To test the model using dataset test and discuss the results
+4. To test the model using dataset test and discuss the results
 
 ## Structure
 
@@ -57,8 +44,9 @@ This article is arranged as follows.
 2. [Metadata](#meta)
 3. [Preparation](#prep)
 4. [Exploratory Data Analysis](#eda)
-5. [Modelling](#model)
-6. [Model Improvements](#modimprov)
+5. [Modelling and Predictions](#model)
+6. [Evaluation](#eval)
+6. [Model Tuning](#tuning)
 7. [Results and Discussions](#resdis)
 8. [Conclusions](#conc)
 
@@ -78,7 +66,6 @@ The label associated with each record contains the letter "R" if the object is a
 
 Gorman, R. P., and Sejnowski, T. J. (1988). "Analysis of Hidden Units in a Layered Network Trained to Classify Sonar Targets" in Neural Networks, Vol. 1, pp. 75-89.
 [Web Link]
-
 
 # Preparation {#prep}
 
@@ -394,6 +381,12 @@ confusionMatrix(as.factor(sonar_test$ypred_label2b), sonar_test$type, positive =
 ```
 
 ```{r}
+predict_log5 <- predict(object = model_log2, newdata = sonar_train2, type = "response")
+predict_log5_label <- ifelse(predict_log5 > 0.5, "R", "M")
+confusionMatrix(as.factor(predict_log5_label), reference = sonar_train2$type, positive = "R")
+```
+
+```{r}
 Accuracy(y_pred = sonar_test$ypred_label, y_true = sonar_test$type)
 Accuracy(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type)
 Accuracy(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type)
@@ -458,6 +451,11 @@ Recall(y_pred = predict_knn2, y_true = y_test, positive = "R")
 Precision(y_pred = predict_knn, y_true = y_test, positive = "R")
 Precision(y_pred = predict_knn2, y_true = y_test, positive = "R")
 ```
+
+# Results and Discussions
+
+
+# Conclusions
 
 
 
