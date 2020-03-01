@@ -154,7 +154,7 @@ p <- sonar %>% select(colnames(.)[-61]) %>%
 ggplotly(p)
 ```
 
-Eventhough the [metadata](#content) said that all predictors range from 0 from 1, we still found there are several of them having relatively minor values compared to the majority. We also found that there is no any high value beyond value of 1. Now, let's check their correlations.
+{#boxplot}Eventhough the [metadata](#content) said that all predictors range from 0 from 1, we still found there are several of them having relatively minor values compared to the majority. We also found that there is no any high value beyond value of 1. Now, let's check their correlations.
 
 ```{r}
 temp <- sonar %>% select(-type)
@@ -170,7 +170,7 @@ ggcorr(temp[,idx], label = T)
 DF <- sonar[,c(idx,61)] # subset only necessary columns, i.e. the multipl of 4
 ```
 
-Nice. We have removed all with high correlation. Now, we should check the p-value of correlation test.
+Nice. We have removed all with high correlation. Now, all remaining are only variables with lower correlation. We also should check the p-value of correlation test.
 
 ```{r}
 sonarComb <- combn(colnames(DF[,-ncol(DF)]), 2) # create combinations among each variable
@@ -205,7 +205,7 @@ In this chapter, we're going to split the dataset into train dataset and test da
 
 ## Splitting
 
-In order to secure the proportion of two datasets after splitting, we're going to use `rsample` library here.
+In order to secure the proportion of two datasets after splitting, we're going to use `rsample` library here. The initial dataset used to split is `DF`, i.e. the one with removed variables of multiplication of 4.
 
 ```{r}
 set.seed(1)
@@ -231,14 +231,18 @@ Nice. The proportion of two datasets approximately is kept. Let's move on to cre
 
 ### Logistic Regression Model
 
-
+We're going to use all predictor variables.
 
 ```{r}
 model_log <- glm(formula = type ~ ., data = sonar_train, family = "binomial", maxit = 30)
 summary(model_log)
 ```
 
+We can see above summary that there are five predictors without any significant code, namely `energy8`, `energy28`, `energy32`, `energy40`, and `energy60`. We will handle this issue later in [Model Tuning](#tuning). For now, let's predict the test dataset using the just-generated model.
+
 ### KNN Data Pre-Processing - Scalling
+
+Specially for KNN, we need to scale all predictor variables in advance. Though all of them are [said](#content) to be in range between 0 and 1, we [found earlier](#boxplot) that some spread not in range exactly 0 and 1. Thus, in order to ensure, it's preferable to still scale all of them.
 
 ```{r}
 X_train.scaled <- scale(x = X_train)
@@ -249,7 +253,11 @@ X_test.scaled <- scale(x = X_test,
 
 ## Predictions
 
+After the models have been prepared. Let's predict the test dataset.
+
 ### Logistic Regression Prediction
+
+Since the direct output of logistic regression model is in log of odds form, we need to convert it to a more interpretable form, i.e. probability. We can use the argument `type = "response"` to arrange this. Afterwards, all probabilities have to be manually assigned to whether positive (Rocks) or negative (Mines) based on the set threshold. As a start, we could use threshold of 0.5.
 
 ```{r}
 predict_log <- predict(object = model_log, newdata = sonar_test, type = "response")
@@ -262,6 +270,8 @@ sonar_test$ypred_label <- ifelse(sonar_test$ypred_prob > 0.5, "R", "M")
 
 ### KNN Prediction
 
+To predict the test dataset using KNN, firstly, we have to determine initial optimum K value. In this case, we're going to obtain K by calculating the square root of all observations of the train dataset.
+
 * Find optimum `K`
 
 ```{r}
@@ -269,15 +279,26 @@ K <- sqrt(nrow(X_train))
 K
 ```
 
-As the target variable has two classes only (`R` or `M`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 13`, it is enough for the prediction.
+As the target variable has two classes only (`R` or `M`) meaning that it is an even number, we need an odd number of `K`. Therefore, with `K = 13`, it should be enough for the prediction.
 
 ```{r}
-predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = 13)
+predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = round(K))
 ```
 
-# Evaluation
+# Evaluation {#eval}
+
+Both models have been used to predict the test dataset. Now, let's evaluate them. Here, to assess both, we're going to utilize two metrics, i.e. [confusion matrix](https://en.wikipedia.org/wiki/Confusion_matrix) and [ROC/AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic).
 
 ## Confusion Matrix
+
+For confusion matrix metric, I'm only interested to highlight Accuracy, Sensitivity (Recall), Specificity, and Pos Pred Value (Precision).
+
+<center>
+![Confusion Matrix Table - source: manisha-sirsat.blogspot.com](https://2.bp.blogspot.com/-EvSXDotTOwc/XMfeOGZ-CVI/AAAAAAAAEiE/oePFfvhfOQM11dgRn9FkPxlegCXbgOF4QCLcBGAs/s1600/confusionMatrxiUpdated.jpg)
+</center>
+
+Let's compare both models in case of confusion matrix.
+
 ```{r}
 print("Confusion Matrix of Log Regression Model")
 confusionMatrix(data = as.factor(sonar_test$ypred_label), reference = y_test, positive = "R")
@@ -316,7 +337,7 @@ auc <- ROCR::performance(prediction.obj = df__roc, "auc")
 auc@y.values[[1]]
 ```
 
-# Model Tuning
+# Model Tuning {#tuning}
 
 ## Tuning Logistic Regression
 
@@ -455,10 +476,10 @@ Precision(y_pred = predict_knn, y_true = y_test, positive = "R")
 Precision(y_pred = predict_knn2, y_true = y_test, positive = "R")
 ```
 
-# Results and Discussions
+# Discussions {#discus}
 
 
-# Conclusions
+# Conclusions {#concl}
 
 
 
