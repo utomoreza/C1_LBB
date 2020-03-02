@@ -465,9 +465,11 @@ cat("\nConfusion matrix of the tuned KNN model\n")
 KNNTable2
 ```
 
-Since both models are unable to perform the accuracy of 90%, we could determine the most highlighted metric (whether accuracy, recall, or precision) based on the business case of the dataset.
+**Based on the results explained, we can conclude that, specially for this dataset, the KNN model performs more efficient than the logistic regression model**. Subsequently, since both models are unable to perform the accuracy of 90%, we could determine the most highlighted metric (whether recall or precision) based on the business case of the dataset.
 
-* If 
+* If we prefer high recall, this means that we increase the probability to have more false positives than false negatives. This could cause we might to have more observations predicted as rocks whereas originally they are mines.
+
+* If we prefer high precision, this means that we increase the probability to have more false negatives than false positives. This could cause we might to have more observations predicted as mines whereas originally they are rocks.
 
 # Conclusions {#concl}
 
