@@ -30,7 +30,7 @@ The goal is to model a prediction to decide between mines and rocks based on son
 
 1. To compare between Logistic Regression and K-nearest neigbors performance
 
-2. To assess the models by the binary classification metrics, i.e. confusion matrix and Receiver Operating Characteristic (ROC) curve and Area Under the Curve (AUC).
+2. To assess the models by a binary classification metric, i.e. confusion matrix.
 
 3. To interpretate the model (only for Logistic Regression)
 
@@ -47,8 +47,8 @@ This article is arranged as follows.
 5. [Modelling and Predictions](#model)
 6. [Evaluation](#eval)
 6. [Model Tuning](#tuning)
-7. [Results and Discussions](#resdis)
-8. [Conclusions](#conc)
+7. [Discussions](#discus)
+8. [Conclusions](#concl)
 
 # Metadata {#meta}
 
@@ -199,9 +199,9 @@ prop.table(table(multicolRes$res))
 
 We only have 44 combinations without multicollinearity detected. However, we just keep forward with the variables used so far.
 
-# Modelling and Predictions
+# Modelling
 
-In this chapter, we're going to split the dataset into train dataset and test dataset. Next, we will create two models of logistic regression and KNN (actually we won't create KNN model as it basically doesn't generate one). After the models retrieved, we will predict the test dataset using both models.
+In this chapter, we're going to split the dataset into train dataset and test dataset. Next, we will create two models of logistic regression and KNN (actually we won't create KNN model as it basically doesn't generate one). After the models retrieved, we will predict the test dataset using both models, and evalute the results.
 
 ## Splitting
 
@@ -229,7 +229,7 @@ Nice. The proportion of two datasets approximately is kept. Let's move on to cre
 
 ## Create the Model
 
-### Logistic Regression Model
+### Logistic Regression Model {#logresmodel}
 
 We're going to use all predictor variables.
 
@@ -285,19 +285,15 @@ As the target variable has two classes only (`R` or `M`) meaning that it is an e
 predict_knn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = round(K))
 ```
 
-# Evaluation {#eval}
+## Evaluation {#eval}
 
-Both models have been used to predict the test dataset. Now, let's evaluate them. Here, to assess both, we're going to utilize two metrics, i.e. [confusion matrix](https://en.wikipedia.org/wiki/Confusion_matrix) and [ROC/AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic).
-
-## Confusion Matrix
-
-For confusion matrix metric, I'm only interested to highlight Accuracy, Sensitivity (Recall), Specificity, and Pos Pred Value (Precision).
+Both models have been used to predict the test dataset. Now, let's evaluate them. Here, to assess both, we're going to utilize [confusion matrix](https://en.wikipedia.org/wiki/Confusion_matrix). For confusion matrix metric, I'm only interested to highlight the Accuracy, Sensitivity (Recall), and Pos Pred Value (Precision). The figure below briefly shows the confusion matrix and its attributes.
 
 <center>
 ![Confusion Matrix Table - source: manisha-sirsat.blogspot.com](https://2.bp.blogspot.com/-EvSXDotTOwc/XMfeOGZ-CVI/AAAAAAAAEiE/oePFfvhfOQM11dgRn9FkPxlegCXbgOF4QCLcBGAs/s1600/confusionMatrxiUpdated.jpg)
 </center>
 
-Let's compare both models in case of confusion matrix.
+Let's compare both models.
 
 ```{r}
 print("Confusion Matrix of Log Regression Model")
@@ -306,50 +302,27 @@ print("Confusion Matrix of KNN")
 confusionMatrix(data = predict_knn, reference = y_test, positive = "R")
 ```
 
-## ROC/AUC
-
-```{r}
-library(ROCR)
-options(scipen = 999)
-df_ <- data.frame("prediction" = predict_log, 
-                      "trueclass" = as.numeric(y_test == "R"))
-
-df__roc <- prediction(df_$prediction, df_$trueclass)
-perf <- performance(df__roc, "tpr", "fpr")
-rocDF <- data.frame(threshold = perf@alpha.values[[1]],
-                    tpr = perf@y.values[[1]],
-                    fpr = perf@x.values[[1]])
-
-ggplot(rocDF, aes(x = fpr, y = tpr)) +
-  geom_line(color = "blue") +
-  geom_point(color = "black") +
-  # geom_roc(n.cuts=20,labels=FALSE) +
-  # style_roc(theme = theme_grey) +
-  geom_abline(color = "grey", intercept = 0, slope = 1, linetype="dashed") +
-  labs(main = "Receiver operating characteristic curve",
-       x = "False positive rate",
-       y = "True positive rate")
-```
-
-```{r}
-# show AUC value
-auc <- ROCR::performance(prediction.obj = df__roc, "auc")
-auc@y.values[[1]]
-```
+Unfortunately, both models perform poorly. All points we're interested in (i.e. Accuracy, Sensitivity, and Pos Pred Value) are more or less below 7. Though, the logistic regression model slightly produces superior results. Based on this insufficient performance, the models are required to tune that both can perform more satisfactorily.
 
 # Model Tuning {#tuning}
 
 ## Tuning Logistic Regression
+
+As mentioned [previously](#logresmodel), there are several predictor variables (i.e. `energy8`, `energy28`, `energy32`, `energy40`, and `energy60`) which are insignificant in the logistic regression model. Now, we're going to remove them, and it is expected that this could enhance the model's performance.
 
 ```{r}
 energyInsignificant <- c("energy8", "energy28", "energy32", "energy40", "energy60")
 sonar_train2 <- sonar_train %>% select(-all_of(energyInsignificant))
 ```
 
+New dataset has been created already. Now, let's use it to train the model and see the results.
+
 ```{r}
 model_log2 <- glm(formula = type ~ ., data = sonar_train2, family = "binomial", maxit = 30)
 summary(model_log2)
 ```
+
+Nice. Each variable at least has `.` sign indicating that its p-value is less than 0.1. Now, use the new model to predict the test dataset.
 
 ```{r}
 predict_log2 <- predict(object = model_log2, newdata = sonar_test, type = "response")
@@ -357,103 +330,89 @@ sonar_test$ypred_prob2 <- predict_log2
 sonar_test$ypred_label2 <- ifelse(sonar_test$ypred_prob2 > 0.5, "R", "M")
 ```
 
+Subsequently, let's see its performance by using confusion matrix.
+
 ```{r}
 confusionMatrix(as.factor(sonar_test$ypred_label2), sonar_test$type, positive = "R")
 ```
 
-Tuning threshold
-
 ```{r}
-options(scipen = 999)
-df_ <- data.frame("prediction" = predict_log2, 
-                      "trueclass" = as.numeric(y_test == "R"))
-
-df__roc <- prediction(df_$prediction, df_$trueclass)
-perf <- performance(df__roc, "tpr", "fpr")
-rocDF <- data.frame(threshold = perf@alpha.values[[1]],
-                    tpr = perf@y.values[[1]],
-                    fpr = perf@x.values[[1]])
-
-ggplot(rocDF, aes(x = fpr, y = tpr)) +
-  geom_line(color = "blue") +
-  geom_point(color = "black") +
-  # geom_roc(n.cuts=20,labels=FALSE) +
-  # style_roc(theme = theme_grey) +
-  geom_abline(color = "grey", intercept = 0, slope = 1, linetype="dashed") +
-  labs(main = "Receiver operating characteristic curve",
-       x = "False positive rate",
-       y = "True positive rate")
+14/(5+14)
+caret::sensitivity(as.factor(sonar_test$ypred_label2), sonar_test$type, positive = "R")
+caret::specificity(as.factor(sonar_test$ypred_label2), sonar_test$type, positive = "R")
+caret::recall(as.factor(sonar_test$ypred_label2), sonar_test$type, positive = "R")
+14/(7+14)
+table(sonar_test$ypred_label2, sonar_test$type, dnn = c("Prediction","Actual"))
+caret::precision(as.factor(sonar_test$ypred_label2), sonar_test$type, positive = "R")
 ```
 
-```{r}
-rocDF$threshold[1] <- 1
-rocDF$spec <- 1 - rocDF$fpr # find specificity value by 1 - false positive rate
-rocDF[which.max(rocDF$tpr + rocDF$spec),] # get the best threshold by finding maximum true positive rate and maximum specificity
-optThreshold <- rocDF[which.max(rocDF$tpr + rocDF$spec),1]
-```
+Good. By eliminating all insignificant predictors, we could increase the performance by approxitamely 2%. To see the enhancement, let's compare all the initial model and the tuned model in the points we're interested in.
 
 ```{r}
-# show AUC value
-auc <- ROCR::performance(prediction.obj = df__roc, "auc")
-auc@y.values[[1]]
+LogResTable1 <- table(sonar_test$ypred_label, sonar_test$type, dnn = c("Prediction","Actual"))
+LogResTable2 <- table(sonar_test$ypred_label2, sonar_test$type, dnn = c("Prediction","Actual"))
+
+Accuracy1 <- (LogResTable1[1,1] + LogResTable1[2,2])/nrow(sonar_test)
+Accuracy2 <- (LogResTable2[1,1] + LogResTable2[2,2])/nrow(sonar_test)
+Recall1 <- LogResTable1[2,2]/(LogResTable1[1,2] + LogResTable1[2,2])
+Recall2 <- LogResTable2[2,2]/(LogResTable2[1,2] + LogResTable2[2,2])
+Precision1 <- LogResTable1[2,2]/(LogResTable1[2,1] + LogResTable1[2,2])
+Precision2 <- LogResTable2[2,2]/(LogResTable2[2,1] + LogResTable2[2,2])
+
+finalResults.LogRes <- data.frame("Model" = c("Initial Log Res","Tuned Log Res"),
+                                  "Accuracy" = c(Accuracy1, Accuracy2),
+                                  "Recall" = c(Recall1, Recall2),
+                                  "Precision" = c(Precision1, Precision2))
+cat("\nConfusion matrix of the initial model\n")
+LogResTable1
+cat("\nConfusion matrix of the tuned model\n")
+LogResTable2
+finalResults.LogRes
 ```
 
-```{r}
-sonar_test$ypred_prob2b <- predict_log2
-sonar_test$ypred_label2b <- ifelse(sonar_test$ypred_prob2b > optThreshold, "R", "M")
-confusionMatrix(as.factor(sonar_test$ypred_label2b), sonar_test$type, positive = "R")
-```
-
-```{r}
-predict_log5 <- predict(object = model_log2, newdata = sonar_train2, type = "response")
-predict_log5_label <- ifelse(predict_log5 > 0.5, "R", "M")
-confusionMatrix(as.factor(predict_log5_label), reference = sonar_train2$type, positive = "R")
-```
-
-```{r}
-Accuracy(y_pred = sonar_test$ypred_label, y_true = sonar_test$type)
-Accuracy(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type)
-Accuracy(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type)
-```
-
-```{r}
-Recall(y_pred = sonar_test$ypred_label, y_true = sonar_test$type, positive = "R")
-Recall(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type, positive = "R")
-Recall(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type, positive = "R")
-```
-
-```{r}
-Precision(y_pred = sonar_test$ypred_label, y_true = sonar_test$type, positive = "R")
-Precision(y_pred = sonar_test$ypred_label2, y_true = sonar_test$type, positive = "R")
-Precision(y_pred = sonar_test$ypred_label2b, y_true = sonar_test$type, positive = "R")
-```
+As seen above, the variable elimination is able to move exactly 1 False Negative (FN) from the results of the initial model to True Positive (TP) as exhibited by the tuned model. By this 1 FN-to-TP movement, the performance increases by more or less 2%, 5%, and 1%, as shown by the data frame above, for accuracy, recall, and precision, respectively. From now on, we use the tuned logistic regression model as our final model to compare to that of KNN.
 
 ## Tuning KNN
 
-### Find best K
+For tuning KNN, we could find the best K value. We could carry out this by using every possible odd K value to predict the test dataset and select the one with best accuracy. This technique is kind of brute force so it is not recommended for the dataset with long rows unless you have a computer with high specifications.
 
 ```{r}
+# get all odd K values
 oddK_idx <- sapply(1:(nrow(X_train)-1), function(x) {ifelse(x%%2 == 1, T, F)})
 optK <- data.frame(1:(nrow(X_train)-1))[oddK_idx,]
-optKNN <- data.frame(K = 1:length(optK), acc = 1:length(optK))
+optKNN <- data.frame(K = 1:length(optK), acc = 1:length(optK)) # create blank dataframe
 
+# brute force to calculate every accuracy of all odd Ks
 for (i in 1:length(optK)) {
   predknn <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, k = optK[i])
   optKNN$K[i] <- optK[i]
   optKNN$acc[i] <- Accuracy(predknn, y_test)
 }
-maxAcc <- optKNN[optKNN$acc == max(optKNN$acc),]
-label <- paste0(round(maxAcc$acc, 2), " when K = ", maxAcc$K)
+maxAcc <- optKNN[optKNN$acc == max(optKNN$acc),] # find the one with max accuracy
+labelMax <- paste0(round(maxAcc$acc, 3), " when K = ", maxAcc$K) # and label it
+
+K13 <- optKNN[optKNN$K == 13,]
+labelK13 <- "K = 13"
+
+# plot the results
 optKNN %>% ggplot(aes(x = K,
                       y = acc)) +
   geom_line(color = "blue") +
   geom_point(data = maxAcc, aes(x = K,
                                 y = acc)) +
-  geom_label(data = maxAcc, aes(label = label), position = position_dodge(20), label.size = 0.05) +
-  labs(title = "No of K vs Accuracy in KNN prediction",
+  geom_point(data = K13, aes(x = K,
+                             y = acc)) +
+  geom_text(data = maxAcc, 
+             aes(label = labelMax), 
+             hjust = -0.1, 
+             size = 3.5) +
+  geom_text(data = K13, aes(label = labelK13), size = 2.5, hjust = 1.4) +
+  labs(title = "No of Ks vs Accuracy in KNN prediction",
        x = "Number of Ks",
        y = "Accuracy")
 ```
+
+Suprisingly, the best K value obtained is just `1`. Even, this `K = 1` transcends all possible K values. As shown above, our previous K, i.e. `K = 13`, is far below `K = 1`. Based on this finding, we're going to reset K value of our KNN model and see its results.
 
 ```{r}
 bestK <- maxAcc$K
@@ -461,26 +420,58 @@ predict_knn2 <- knn(train = X_train.scaled, test = X_test.scaled, cl = y_train, 
 confusionMatrix(predict_knn2, reference = y_test, positive = "R")
 ```
 
-```{r}
-Accuracy(y_pred = predict_knn, y_true = y_test)
-Accuracy(y_pred = predict_knn2, y_true = y_test)
-```
+Great. Now, our KNN model reaches the accuracy of 80%. Let's compare this tuned model to the initial one.
 
 ```{r}
-Recall(y_pred = predict_knn, y_true = y_test, positive = "R")
-Recall(y_pred = predict_knn2, y_true = y_test, positive = "R")
+KNNTable1 <- table(predict_knn, y_test, dnn = c("Prediction","Actual"))
+KNNTable2 <- table(predict_knn2, y_test, dnn = c("Prediction","Actual"))
+
+Accuracy1 <- (KNNTable1[1,1] + KNNTable1[2,2])/nrow(sonar_test)
+Accuracy2 <- (KNNTable2[1,1] + KNNTable2[2,2])/nrow(sonar_test)
+Recall1 <- KNNTable1[2,2]/(KNNTable1[1,2] + KNNTable1[2,2])
+Recall2 <- KNNTable2[2,2]/(KNNTable2[1,2] + KNNTable2[2,2])
+Precision1 <- KNNTable1[2,2]/(KNNTable1[2,1] + KNNTable1[2,2])
+Precision2 <- KNNTable2[2,2]/(KNNTable2[2,1] + KNNTable2[2,2])
+
+finalResults.KNN <- data.frame("Model" = c("Initial KNN","Tuned KNN"),
+                                  "Accuracy" = c(Accuracy1, Accuracy2),
+                                  "Recall" = c(Recall1, Recall2),
+                                  "Precision" = c(Precision1, Precision2))
+cat("Confusion matrix of the initial model\n")
+KNNTable1
+cat("\nConfusion matrix of the tuned model\n")
+KNNTable2
+finalResults.KNN
 ```
+
+Amazing. Such `K = 1` significantly elevates the performance of KNN model by approximately 20%, 26%, and 22%, as seen in above data frame, for accuracy, recall, and precision, respectively. This is proven by, if you see the confusion matrices above, three FP-to-TN and five FN-to-TP movements. From now on, the KNN model used is the tuned one with `K = 1`.
+
+## Comparison of the Tuned Models
+
+Both logistic regression and KNN models have been tuned. Both produce improved results. Now, let's compare both tuned models and see the results.
 
 ```{r}
-Precision(y_pred = predict_knn, y_true = y_test, positive = "R")
-Precision(y_pred = predict_knn2, y_true = y_test, positive = "R")
+finalResults <- rbind(finalResults.LogRes[2,], finalResults.KNN[2,])
+rownames(finalResults) <- NULL
+finalResults
 ```
 
-# Discussions {#discus}
+As seen above, in case of accuracy and precision, the KNN performs much better than the logistic regression. However, uniquely, in case of recall, both models exhibit exactly the same values. This could occur because both have exactly the same proportion of true positive and false negative as shown by the table below.
 
+```{r}
+cat("Confusion Matrix of the tuned log res model\n")
+LogResTable2
+cat("\nConfusion matrix of the tuned KNN model\n")
+KNNTable2
+```
+
+Since both models are unable to perform the accuracy of 90%, we could determine the most highlighted metric (whether accuracy, recall, or precision) based on the business case of the dataset.
+
+* If 
 
 # Conclusions {#concl}
 
+May be overfitted if we would use other test datasets.
 
 
 
